@@ -25,9 +25,32 @@
     Please REMOVE this comment before publishing your game on BGA
 -->
 
+<div class="generalcontainer">
+    <div class="game">
+        <div id="board" class="board">
+            <div id="boardcards" class="boardcards">
+            </div>
+        </div>
 
-This is your game interface. You can edit this HTML in your ".tpl" file.
+        <div id="myhand_wrap" class="whiteblock">
+            <h3>{MY_HAND}</h3>
+            <div id="myhand">
+            </div>
+        </div>
+    </div>
 
+    <div id="scopazone">
+        <!-- BEGIN scopazone -->
+        <div class="scopazone whiteblock">
+            <div class="scopazonename" style="color:#{PLAYER_COLOR}">
+                {PLAYER_NAME}
+            </div>
+            <div class="scopazonecards" id="scopazonecards_{PLAYER_ID}">
+            </div>
+        </div>
+        <!-- END scopazone -->
+    </div>
+</div>
 
 <script type="text/javascript">
 

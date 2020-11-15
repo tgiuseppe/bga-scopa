@@ -39,6 +39,20 @@
 
         /*********** Place your code below:  ************/
 
+        $template = self::getGameName()."_".self::getGameName();
+
+        $this->page->begin_block($template, "scopazone");
+        foreach ($players as $player_id => $info) {
+          $this->page->insert_block("scopazone", array(
+            "PLAYER_ID" => $player_id,
+            "PLAYER_NAME" => $players[$player_id]['player_name'],
+            "PLAYER_COLOR" => $players[$player_id]['player_color']
+          ));
+        }
+        
+        /*********** Translations ***********/
+
+        $this->tpl['MY_HAND'] = self::_("My hand");
 
         /*
         

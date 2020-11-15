@@ -18,12 +18,15 @@
 define([
     "dojo","dojo/_base/declare",
     "ebg/core/gamegui",
-    "ebg/counter"
+    "ebg/counter",
+    "ebg/stock"
 ],
 function (dojo, declare) {
     return declare("bgagame.scopagm", ebg.core.gamegui, {
         constructor: function(){
             console.log('scopagm constructor');
+            this.cardwidth = 72;
+            this.cardheight = 96;
               
             // Here, you can init the global variables of your user interface
             // Example:
@@ -58,6 +61,35 @@ function (dojo, declare) {
             
             // TODO: Set up your game interface here, according to "gamedatas"
             
+            // Player Hand
+            this.playerHand = new ebg.stock();
+            this.playerHand.create(this, $('myhand'), this.cardwidth, this.cardheight);
+            this.playerHand.image_items_per_row = 10;
+            this.playerHand.setSelectionMode(1);
+
+            // Board
+            this.board = new ebg.stock();
+            this.board.create(this, $('boardcards'), this.cardwidth, this.cardheight);
+            this.board.image_items_per_row = 10;
+            this.board.centerItems = true;
+
+            // Create cards types
+            for (let color = 1; color <= 4; color++) {
+                for (let value = 1; value <= 10; value++) {
+                    let card_type = this.getCardType(color, value);
+                    this.playerHand.addItemType(card_type, card_type, g_gamethemeurl + 'img/cards_fr.jpg', card_type);
+                    this.board.addItemType(card_type, card_type, g_gamethemeurl + 'img/cards_fr.jpg', card_type);
+                }
+            }
+
+            // TODO: Delete
+            // this.playerHand.addToStockWithId( this.getCardType(1, 1), 1);
+            // this.playerHand.addToStockWithId( this.getCardType(1, 2), 2);
+            // this.playerHand.addToStockWithId( this.getCardType(1, 3), 3);
+            this.board.addToStockWithId( this.getCardType(3,1), 4);
+            this.board.addToStockWithId( this.getCardType(3,2), 5);
+            this.board.addToStockWithId( this.getCardType(3,3), 6);
+            this.board.addToStockWithId( this.getCardType(3,4), 7);
  
             // Setup game notifications to handle (see "setupNotifications" method below)
             this.setupNotifications();
@@ -151,12 +183,9 @@ function (dojo, declare) {
         ///////////////////////////////////////////////////
         //// Utility methods
         
-        /*
-        
-            Here, you can defines some utility methods that you can use everywhere in your javascript
-            script.
-        
-        */
+        getCardType: function(color, value) {
+            return (color - 1) * 10 + (value - 1);
+        },
 
 
         ///////////////////////////////////////////////////
