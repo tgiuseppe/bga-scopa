@@ -2,7 +2,7 @@
  /**
   *------
   * BGA framework: © Gregory Isabelli <gisabelli@boardgamearena.com> & Emmanuel Colin <ecolin@boardgamearena.com>
-  * ScopaGM implementation : © <Your name here> <Your email address here>
+  * ScopaGM implementation : © Giuseppe Madonia <tgiuseppe94@gmail.com>
   * 
   * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
   * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -33,13 +33,17 @@ class ScopaGM extends Table
         parent::__construct();
         
         self::initGameStateLabels( array( 
-            //    "my_first_global_variable" => 10,
-            //    "my_second_global_variable" => 11,
+            //    Variables
+            "dealer" => 10
+            
             //      ...
             //    "my_first_game_variant" => 100,
             //    "my_second_game_variant" => 101,
             //      ...
-        ) );        
+        ) );
+
+        $this->cards = self::getNew("module.common.deck");
+        $this->cards->init("cards");
 	}
 	
     protected function getGameName( )
@@ -80,7 +84,7 @@ class ScopaGM extends Table
         /************ Start the game initialization *****/
 
         // Init global values with their initial values
-        //self::setGameStateInitialValue( 'my_first_global_variable', 0 );
+        self::setGameStateInitialValue( 'dealer', 0 );
         
         // Init game statistics
         // (note: statistics used in this file must be defined in your stats.inc.php file)
@@ -89,6 +93,23 @@ class ScopaGM extends Table
 
         // TODO: setup the initial game situation here
        
+       // Create Cards
+        $cards = array();
+        foreach ($this->suits as $suit_id => $suit) {
+           for ($value = 1; $value <= 10; $value++) {
+               $cards[] = array('type' => $suit_id, 'type_arg' => $value, 'nbr' => 1);
+           }
+        }
+
+       $this->cards->createCards($cards, 'deck');
+
+       // Shuffle deck
+       $this->cards->shuffle('deck');
+       $players = self::loadPlayersBasicInfos();
+       foreach ($players as $player_id => $player) {
+           $cards = $this->cards->pickCards(3, 'deck', $player_id);
+       }
+       $cards = $this->cards->pickCardsForLocation(4, 'deck', 'cardsonboard');
 
         // Activate first player (which is in general a good idea :) )
         $this->activeNextPlayer();
@@ -117,6 +138,18 @@ class ScopaGM extends Table
         $result['players'] = self::getCollectionFromDb( $sql );
   
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
+
+        // Cards in player hand
+        $result['hand'] = $this->cards->getCardsInLocation('hand', $current_player_id);
+
+        // Cards on board
+        $result['cardsonboard'] = $this->cards->getCardsInLocation('cardsonboard');
+
+        // Cards that are scopa
+        $sql = "SELECT card_id id, card_type type, card_type_arg type_arg, card_location location, card_location_arg location_arg, card_scopa scopa 
+        FROM cards WHERE card_location = 'capturedcards'";
+        $result['capturedcards'] = self::getCollectionFromDb( $sql );
+
   
         return $result;
     }

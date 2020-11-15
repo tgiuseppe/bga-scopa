@@ -3,7 +3,7 @@
 <!-- 
 --------
 -- BGA framework: © Gregory Isabelli <gisabelli@boardgamearena.com> & Emmanuel Colin <ecolin@boardgamearena.com>
--- ScopaGM implementation : © <Your name here> <Your email address here>
+-- ScopaGM implementation : © Giuseppe Madonia <tgiuseppe94@gmail.com>
 -- 
 -- This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
 -- See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -39,16 +39,16 @@
         </div>
     </div>
 
-    <div id="scopazone">
-        <!-- BEGIN scopazone -->
-        <div class="scopazone whiteblock">
-            <div class="scopazonename" style="color:#{PLAYER_COLOR}">
-                {PLAYER_NAME}
+    <div id="scopatable">
+        <!-- BEGIN scopatable -->
+        <div class="scopatable whiteblock">
+            <div class="scopatablename" style="color:#{TEAM_COLOR}">
+                {TEAM_NAME}
             </div>
-            <div class="scopazonecards" id="scopazonecards_{PLAYER_ID}">
+            <div class="scopatablecards" id="scopatablecards_{TEAM_COLOR}">
             </div>
         </div>
-        <!-- END scopazone -->
+        <!-- END scopatable -->
     </div>
 </div>
 

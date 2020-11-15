@@ -1,7 +1,7 @@
 /**
  *------
  * BGA framework: © Gregory Isabelli <gisabelli@boardgamearena.com> & Emmanuel Colin <ecolin@boardgamearena.com>
- * ScopaGM implementation : © <Your name here> <Your email address here>
+ * ScopaGM implementation : © Giuseppe Madonia <tgiuseppe94@gmail.com>
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -31,6 +31,8 @@ function (dojo, declare) {
             // Here, you can init the global variables of your user interface
             // Example:
             // this.myGlobalValue = 0;
+
+            this.deckType = 'fr';
 
         },
         
@@ -73,23 +75,62 @@ function (dojo, declare) {
             this.board.image_items_per_row = 10;
             this.board.centerItems = true;
 
-            // Create cards types
-            for (let color = 1; color <= 4; color++) {
-                for (let value = 1; value <= 10; value++) {
-                    let card_type = this.getCardType(color, value);
-                    this.playerHand.addItemType(card_type, card_type, g_gamethemeurl + 'img/cards_fr.jpg', card_type);
-                    this.board.addItemType(card_type, card_type, g_gamethemeurl + 'img/cards_fr.jpg', card_type);
+            // Scopa tables
+            this.scopatables = {};
+            for( var player_id in gamedatas.players )
+            {
+                var player = gamedatas.players[player_id];
+                let color = player.color;
+                if (this.scopatables[color] == null) {
+                    this.scopatables[color] = new ebg.stock();
+                    this.scopatables[color].create(this, $('scopatablecards_' + color), this.cardwidth, this.cardheight);
+                    this.scopatables[color].image_items_per_row = 10;
+                    this.scopatables[color].setSelectionMode(0);
+                    this.scopatables[color].setOverlap(40,0);
                 }
             }
 
-            // TODO: Delete
-            // this.playerHand.addToStockWithId( this.getCardType(1, 1), 1);
-            // this.playerHand.addToStockWithId( this.getCardType(1, 2), 2);
-            // this.playerHand.addToStockWithId( this.getCardType(1, 3), 3);
-            this.board.addToStockWithId( this.getCardType(3,1), 4);
-            this.board.addToStockWithId( this.getCardType(3,2), 5);
-            this.board.addToStockWithId( this.getCardType(3,3), 6);
-            this.board.addToStockWithId( this.getCardType(3,4), 7);
+            console.log(this.scopatables);
+
+            // Create cards types
+            for (let suit = 1; suit <= 4; suit++) {
+                for (let value = 1; value <= 10; value++) {
+                    let card_type = this.getCardType(suit, value);
+                    this.playerHand.addItemType(card_type, card_type, this.getDeckImagePath(this.deckType), card_type);
+                    this.board.addItemType(card_type, card_type, this.getDeckImagePath(this.deckType), card_type);
+                    for ( var color in this.scopatables) {
+                        let scopatable = this.scopatables[color];
+                        scopatable.addItemType(card_type, card_type, this.getDeckImagePath(this.deckType), card_type);
+                    }
+                }
+            }
+
+            // Cards in player's hand
+            for (let i in this.gamedatas.hand) {
+                let card = this.gamedatas.hand[i];
+                let suit = card.type;
+                let value = card.type_arg;
+                this.playerHand.addToStockWithId(this.getCardType(suit, value), card.id);
+            }
+
+            // Cards on board
+            for (let i in this.gamedatas.cardsonboard) {
+                let card = this.gamedatas.cardsonboard[i];
+                let suit = card.type;
+                let value = card.type_arg;
+                this.board.addToStockWithId(this.getCardType(suit, value), card.id);
+            }
+
+            // Captured cards that are scopa
+            for (let i in gamedatas.capturedcards) {
+                let card = gamedatas.capturedcards[i];
+                if (card.scopa) {
+                    let suit = card.type;
+                    let value = card.type_arg;
+                    let color = gamedatas.players[card.location_arg].color;
+                    this.scopatables[color].addToStockWithId(this.getCardType(suit, value), card.id);
+                }
+            }
  
             // Setup game notifications to handle (see "setupNotifications" method below)
             this.setupNotifications();
@@ -183,8 +224,17 @@ function (dojo, declare) {
         ///////////////////////////////////////////////////
         //// Utility methods
         
-        getCardType: function(color, value) {
-            return (color - 1) * 10 + (value - 1);
+        getDeckImagePath: function(deckType) {
+            switch (deckType) {
+                case 'fr':
+                    return g_gamethemeurl + 'img/cards_fr.jpg';
+                case 'it':
+                    return g_gamethemeurl + 'img/cards_fr.jpg';
+            }
+        },
+
+        getCardType: function(suit, value) {
+            return (suit - 1) * 10 + (value - 1);
         },
 
 
