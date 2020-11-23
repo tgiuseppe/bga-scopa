@@ -90,8 +90,6 @@ function (dojo, declare) {
                 }
             }
 
-            console.log(this.scopatables);
-
             // Create cards types
             for (let suit = 1; suit <= 4; suit++) {
                 for (let value = 1; value <= 10; value++) {
@@ -131,6 +129,10 @@ function (dojo, declare) {
                     this.scopatables[color].addToStockWithId(this.getCardType(suit, value), card.id);
                 }
             }
+
+            // Stock events connection
+            dojo.connect(this.playerHand, 'onChangeSelection', this, 'onPlayerHandSelectionChanged');
+            dojo.connect(this.board, 'onChangeSelection', this, 'onBoardSelectionChanged');
  
             // Setup game notifications to handle (see "setupNotifications" method below)
             this.setupNotifications();
@@ -237,6 +239,23 @@ function (dojo, declare) {
             return (suit - 1) * 10 + (value - 1);
         },
 
+        playCardOnBoard: function(player_id, suit, value, card_id) {
+            if (player_id != this.player_id) {
+                // Opponent played the card
+                let from = 'overall_player_board_' + player_id;
+                this.board.addToStockWithId(this.getCardType(suit, value), card_id, from);
+            } else {
+                // I played the card
+                let from = 'myhand_item_' + card_id;
+                if ($(from)) {
+                    this.board.addToStockWithId(this.getCardType(suit, value), card_id, from);
+                    this.playerHand.removeFromStockById(card_id);
+                }
+            }
+
+            this.board.addToStockWithId(this.getCardType(suit, value), card_id);
+        },
+
 
         ///////////////////////////////////////////////////
         //// Player's action
@@ -251,6 +270,35 @@ function (dojo, declare) {
             _ make a call to the game server
         
         */
+
+        onPlayerHandSelectionChanged: function() {
+            let player_cards = this.playerHand.getSelectedItems();
+            let chosen_cards = this.board.getSelectedItems();
+
+            if (player_cards.length > 0) {
+                let action = 'playCard';
+                if (this.checkAction(action, true)) {
+                    let card_id = player_cards[0].id;
+                    let chosen_card_ids = chosen_cards.map(card => card.id).join(";");
+                    
+                    this.ajaxcall(
+                        "/" + this.game_name + "/" +this.game_name + "/" + action + ".html",
+                        { id: card_id, chosen_ids: chosen_card_ids , lock: true },
+                        this,
+                        function(result) {},
+                        function(is_error) {}
+                    );
+
+                    this.playerHand.unselectAll();
+                } else {
+                    this.playerHand.unselectAll();
+                }
+            }
+        },
+
+        onBoardSelectionChanged: function() {
+            console.log("Board clicked");
+        },
         
         /* Example:
         

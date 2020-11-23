@@ -103,13 +103,8 @@ class ScopaGM extends Table
 
        $this->cards->createCards($cards, 'deck');
 
-       // Shuffle deck
-       $this->cards->shuffle('deck');
-       $players = self::loadPlayersBasicInfos();
-       foreach ($players as $player_id => $player) {
-           $cards = $this->cards->pickCards(3, 'deck', $player_id);
-       }
-       $cards = $this->cards->pickCardsForLocation(4, 'deck', 'cardsonboard');
+       // Begin round
+       $this->setNewRound();
 
         // Activate first player (which is in general a good idea :) )
         $this->activeNextPlayer();
@@ -180,7 +175,146 @@ class ScopaGM extends Table
         In this space, you can put any utility methods useful for your game logic
     */
 
+    function giveCardsToPlayers() {
+        $players = self::loadPlayersBasicInfos();
 
+        foreach ($players as $player_id => $player) {
+            $cards = $this->cards->pickCards(3, 'deck', $player_id);
+        }
+    }
+
+    function setNewRound() {
+        do {
+            $this->cards->moveAllCardsInLocation(null, "deck");
+            $this->cards->shuffle('deck');
+            $cards = $this->cards->pickCardsForLocation(4, 'deck', 'cardsonboard');
+        } while ($this->isIllegalSetup($cards));
+
+        $this->giveCardsToPlayers();
+    }
+
+    function isIllegalSetup($cards) {
+        $nbrKings = 0;
+        foreach ($cards as $card) {
+            if ($card['type_arg'] == 10) {
+                $nbrKings++;
+            }
+        }
+
+        return $nbrKings > 2;
+    }
+
+    function isScopa($chosenCards, $cardsOnBoard) {
+        // Put this method after checking capture rules
+
+        // Can't be scopa if cards are not taken
+        if (count($chosenCards) == 0) {
+            return false;
+        }
+
+        // TODO If the capture is made with the last card in the round, it can't be scopa
+
+        // After checking the rules, it's scopa if the player is emptying the board
+        if (count($chosenCards) == count($cardsOnBoard)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // Recursive
+    function allCombinationsList($cardValueList) {
+        if (count($cardValueList) == 0) {
+            return array();
+
+        } else {
+            $cardValueListMutable = array_values($cardValueList);
+
+            $elementToAdd = array();
+            array_push($elementToAdd, $cardValueListMutable[0]);
+            array_splice($cardValueListMutable, 0, 1);
+
+            $combinations = $this->allCombinationsList($cardValueListMutable);
+            unset($cardValueListMutable);
+
+            $result = array();
+            array_push($result, $elementToAdd);
+            foreach ($combinations as $combination) {
+                array_push($result, $combination);
+
+                $merge = array_merge($elementToAdd, $combination);
+                // We don't want useless work
+                if (array_sum($merge) <= 10) {
+                    array_push($result, $merge);
+                }
+            }
+
+            return $result;
+        }
+    }
+
+//////////////////////////////////////////////////////////////////////////////
+//////////// Rules methods
+////////////    
+    /*
+        Methods that check if rules are followed
+    */
+
+    function isTakingOneCard($playedCard, $chosenCards, $cardsOnBoard) {
+        $cardValue = $playedCard['type_arg'];
+
+        // Player is taking a card with the same value, rule followed
+        // Or is taking a card with the wrong value, rule broken
+        if (count($chosenCards) == 1) {
+            $key = array_keys($chosenCards)[0];
+            if ($chosenCards[$key]['type_arg'] == $cardValue) {
+                return true;
+            } else {
+                throw new BgaUserException(self::_("You are trying to take a card with a different value than your selected card"));
+            }
+        }
+
+        // Player is not taking a card with the same value, rule broken
+        foreach ($cardsOnBoard as $card) {
+            if ($card['type_arg'] == $cardValue) {
+                throw new BgaUserException(self::_("There is at least one card on the table with the same value as your selected card"));
+            }
+        }
+
+        // No cards with the same value present on board, rule followed
+        return false;
+    }
+
+    function isTakingMultipleCards($playedCard, $chosenCards, $cardsOnBoard) {
+        $cardValue = $playedCard['type_arg'];
+
+        // Player is taking the exact value sum of his card, rule followed
+        // Or the wrong sum, rule broken
+        if (count($chosenCards) > 1) {
+            $sum = 0;
+            foreach ($chosenCards as $card) {
+                $sum += $card['type_arg'];
+            }
+            if ($sum == $cardValue) {
+                return true;
+            } else {
+                throw new BgaUserException(self::_("You are trying to take cards which sum doesn't match with the value of your selected card"));
+            }
+        }
+
+        // Player is not taking cards which sum match with his card, rule broken
+        $combinations = $this->allCombinationsList(array_map( function($card) { return $card['type_arg']; }, $cardsOnBoard));
+        foreach ($combinations as $combination) {
+            if (count($combination) > 1) {
+                $sum = array_sum($combination);
+                if ($sum == $cardValue) {
+                    throw new BgaUserException(self::_("It's possible to take multiple cards with your selected card, you must take them"));
+                }
+            }
+        }
+
+        return false;
+    }
 
 //////////////////////////////////////////////////////////////////////////////
 //////////// Player actions
@@ -191,31 +325,69 @@ class ScopaGM extends Table
         (note: each method below must match an input method in scopagm.action.php)
     */
 
-    /*
-    
-    Example:
-
-    function playCard( $card_id )
-    {
-        // Check that this is the player's turn and that it is a "possible action" at this game state (see states.inc.php)
-        self::checkAction( 'playCard' ); 
-        
+    function playCard($card_id, $chosen_ids) {
+        self::checkAction("playCard");
         $player_id = self::getActivePlayerId();
-        
-        // Add your game logic to play a card there 
-        ...
-        
-        // Notify all players about the card played
-        self::notifyAllPlayers( "cardPlayed", clienttranslate( '${player_name} plays ${card_name}' ), array(
-            'player_id' => $player_id,
-            'player_name' => self::getActivePlayerName(),
-            'card_name' => $card_name,
-            'card_id' => $card_id
-        ) );
-          
+
+        $playedCard = null;
+        $chosenCards = $this->cards->getCards($chosen_ids);
+        $playerHand = $this->cards->getCardsInLocation("hand", $player_id);
+        $cardsOnBoard = $this->cards->getCardsInLocation("cardsonboard");
+
+        // Do you really have this card in hand?
+        $bIsInHand = false;
+        foreach ($playerHand as $card) {
+            if ($card['id'] == $card_id) {
+                $bIsInHand = true;
+                $playedCard = $card;
+                break;
+            }
+        }
+        if (! $bIsInHand) {
+            throw new feException(self::_("This card is not in your hand"));
+        }
+
+        // Are your chosen cards really on the board?
+        if (count($chosenCards) > 0) {
+            $bAreOnBoard = false;
+            foreach ($chosenCards as $card) {
+                $bFoundCard = false;
+                foreach ($cardsOnBoard as $cardOnBoard) {
+                    if ($cardOnBoard['id'] == $card['id']) {
+                        $bFoundCard = true;
+                        break;
+                    }
+                }
+                if ($bFoundCard) {
+                    $bAreOnBoard = true;
+                } else {
+                    $bAreOnBoard = false;
+                    break;
+                }
+            }
+
+            if (!$bAreOnBoard) {
+                throw new feException(self::_("Cards not found on the board"));
+            }
+        }
+
+        // If present, must capture a card with the same value
+        $bOneCardTaken = $this->isTakingOneCard($playedCard, $chosenCards, $cardsOnBoard);
+
+        // If there is a possible sum, must capture those with the played card
+        $bMultipleCardsTaken = $this->isTakingMultipleCards($playedCard, $chosenCards, $cardsOnBoard);
+
+        $bIsScopa = $this->isScopa($chosenCards, $cardsOnBoard);
+
+        // Notifications
+        $notifType = "playCard";
+        $notifLog = "";
+        $notifArgs = array();
+
+        // self::notifyAllPlayers("playCard", clienttranslate("${player_name} plays "))
+
+        throw new BgaUserException(self::_("Not implemented: "."$player_id plays $card_id"));
     }
-    
-    */
 
     
 //////////////////////////////////////////////////////////////////////////////
@@ -253,19 +425,20 @@ class ScopaGM extends Table
         Here, you can create methods defined as "game state actions" (see "action" property in states.inc.php).
         The action method of state X is called everytime the current game state is set to X.
     */
-    
-    /*
-    
-    Example for game state "MyGameState":
 
-    function stMyGameState()
-    {
-        // Do some stuff ...
-        
-        // (very often) go to another gamestate
-        $this->gamestate->nextState( 'some_gamestate_transition' );
-    }    
-    */
+    // TODO Check this state for global values
+    function stNewRound() {
+        $this->setNewRound();
+        $this->gamestate->nextState("");
+    }
+
+    // TODO Implement cases
+    function stNextPlayer() {
+        // Standard case
+        $player_id = self::activeNextPlayer();
+        self::giveExtraTime($player_id);
+        $this->gamestate->nextState("nextPlayer");
+    }
 
 //////////////////////////////////////////////////////////////////////////////
 //////////// Zombie

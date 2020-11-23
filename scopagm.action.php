@@ -39,9 +39,23 @@
       }
   	} 
   	
-  	// TODO: defines your action entry points there
+    // TODO: defines your action entry points there
+    
+    public function playCard() {
+      self::setAjaxMode();
+      
+      $card_id = self::getArg("id", AT_posint, true);
+      $chosen_cards_ids_raw = self::getArg("chosen_ids", AT_numberlist, true);
 
+      if ($chosen_cards_ids_raw == "") {
+        $chosen_cards_ids = array();
+      } else {
+        $chosen_cards_ids = explode(";", $chosen_cards_ids_raw);
+      }
 
+      $this->game->playCard($card_id, $chosen_cards_ids);
+      self::ajaxResponse();
+    }
     /*
     
     Example:
