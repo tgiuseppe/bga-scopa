@@ -120,8 +120,8 @@ function (dojo, declare) {
             }
 
             // Captured cards that are scopa
-            for (let i in gamedatas.capturedcards) {
-                let card = gamedatas.capturedcards[i];
+            for (let i in gamedatas.taken) {
+                let card = gamedatas.taken[i];
                 if (card.scopa) {
                     let suit = card.type;
                     let value = card.type_arg;

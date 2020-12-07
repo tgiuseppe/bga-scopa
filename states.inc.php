@@ -68,7 +68,15 @@ $machinestates = array(
         "type" => "game",
         "action" => "stNewRound",
         "updateGameProgression" => true,
-        "transitions" => array( "" => 30 )
+        "transitions" => array( "" => 21 )
+    ),
+
+    21 => array(
+        "name" => "newHand",
+        "description" => "",
+        "type" => "game",
+        "action" => "stNewHand",
+        "transitions" => array( "" => 30)
     ),
 
     // 
@@ -87,8 +95,16 @@ $machinestates = array(
         "description" => "",
         "type" => "game",
         "action" => "stNextPlayer",
-        "transitions" => array( "nextPlayer" => 30 )
-    ), 
+        "transitions" => array( "nextPlayer" => 30, "newHand" => 21, "endRound" => 40 )
+    ),
+
+    40 => array(
+        "name" => "endRound",
+        "description" => "",
+        "type" => "game",
+        "action" => "stEndRound",
+        "transitions" => array( "nextRound" => 20, "endGame" => 99 )
+    ),  
     
 /*
     Examples:

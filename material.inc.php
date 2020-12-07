@@ -19,6 +19,14 @@
  *
  */
 
+/*
+* By convention: Cups = Hearts, Golds = Diamonds, Clubs = Clovers/Clubs, Swords = Spades
+* Also, depending on which type of deck is used, values can differ. In the neapolitan type-deck:
+* Knave ("Woman" is also widespread) = J = 8
+* Knight = Q = 9
+* King = K = 10
+*/
+
  $this->suits = array(
    1 => array( 'name' => clienttranslate('heart'),
                'nametr' => self::_('heart') ),
@@ -42,19 +50,4 @@
    9 => clienttranslate('Q'),
    10 => clienttranslate('K')
  );
-
-/*
-
-Example:
-
-$this->card_types = array(
-    1 => array( "card_name" => ...,
-                ...
-              )
-);
-
-*/
-
-
-
-
+ 
