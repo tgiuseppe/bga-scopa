@@ -34,7 +34,8 @@ class ScopaGM extends Table
         
         self::initGameStateLabels( array( 
             //    Variables
-            "dealer" => 10
+            "dealer" => 10,
+            "last_player_to_take" => 11
             
             //      ...
             //    "my_first_game_variant" => 100,
@@ -84,7 +85,8 @@ class ScopaGM extends Table
         /************ Start the game initialization *****/
 
         // Init global values with their initial values
-        self::setGameStateInitialValue( 'dealer', 0 );
+        self::setGameStateInitialValue( 'dealer', 0 ); // Here just to group all global values initialization
+        self::setGameStateInitialValue( 'last_player_to_take', 0); // It's impossible to end a round with no takes, so there's no need to initialize it to an id
         
         // Init game statistics
         // (note: statistics used in this file must be defined in your stats.inc.php file)
@@ -103,12 +105,10 @@ class ScopaGM extends Table
 
        $this->cards->createCards($cards, 'deck');
 
-       // Begin round
-       $this->putCardsOnBoard();
-
         // Activate first player (which is in general a good idea :) )
         $this->activeNextPlayer();
-
+        self::setGameStateValue( 'dealer', $this->getActivePlayerId() );
+        
         /************ End of the game initialization *****/
     }
 
@@ -145,7 +145,12 @@ class ScopaGM extends Table
         FROM cards WHERE card_location = 'taken'";
         $result['taken'] = self::getCollectionFromDb( $sql );
 
-  
+        // Remaining card on the deck
+        $result['nbrdeck'] = $this->getCardsRemainingInDeck();
+
+        // Dealer
+        $result['dealer'] = self::getGameStateValue('dealer');
+
         return $result;
     }
 
@@ -175,20 +180,54 @@ class ScopaGM extends Table
         In this space, you can put any utility methods useful for your game logic
     */
 
+    function getActivePlayerColor() {
+        $player_id = self::getActivePlayerId();
+        $players = self::loadPlayersBasicInfos();
+        if( isset( $players[ $player_id ]) )
+            return $players[ $player_id ]['player_color'];
+        else
+            return null;
+    }
+
+    function getPlayerColorById($player_id) {
+        $players = self::loadPlayersBasicInfos();
+        if( isset( $players[ $player_id ]) )
+            return $players[ $player_id ]['player_color'];
+        else
+            return null;
+    }
+
+    function getCardsRemainingInDeck() {
+        $sql = "SELECT count(*) remaining FROM cards WHERE card_location = 'deck' GROUP BY card_location";
+        $value = self::getUniqueValueFromDB( $sql );
+        return $value != null ? $value : 0;
+    }
+
     function giveCardsToPlayers() {
         $players = self::loadPlayersBasicInfos();
 
         foreach ($players as $player_id => $player) {
             $cards = $this->cards->pickCards(3, 'deck', $player_id);
+            $this->notifyPlayerNewHand($player_id, $cards);
         }
     }
 
+    function notifyPlayerNewHand($player_id, $cards) {
+        self::notifyPlayer($player_id, 'newHandPlayer', '', array(
+            'player_id' => $player_id,
+            'cards' => $cards
+        ));
+    }
+
     function putCardsOnBoard() {
+        $cards = array();
         do {
             $this->cards->moveAllCardsInLocation(null, "deck");
             $this->cards->shuffle('deck');
             $cards = $this->cards->pickCardsForLocation(4, 'deck', 'cardsonboard');
         } while ($this->isIllegalSetup($cards));
+
+        return $cards;
     }
 
     function isIllegalSetup($cards) {
@@ -249,6 +288,30 @@ class ScopaGM extends Table
 
             return $result;
         }
+    }
+
+    function giveRemainingCardsOnBoard() {
+        $winner_id = self::getGameStateValue('last_player_to_take');
+        $cards = $this->cards->getCardsInLocation('cardsonboard');
+        $this->cards->moveAllCardsInLocation('cardsonboard', 'taken', null, $winner_id);
+        self::notifyAllPlayers('lastPlay', clienttranslate('This round ended. ${player_name} takes the remaining cards on the table'), array(
+            'player_id' => $winner_id,
+            'player_name' => self::loadPlayersBasicInfos()[$winner_id]['player_name'],
+            'cards' => $cards
+        ));
+    }
+
+    function updateScore() {
+        $players = self::loadPlayersBasicInfos();
+        foreach ($players as $player_id => $player) {
+            
+        }
+    }
+
+    function nextDealer() {
+        $actualDealer = self::getGameStateValue('dealer');
+        $nextDealer = self::getPlayerBefore($actualDealer);
+        self::setGameStateValue('dealer', $nextDealer);
     }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -373,15 +436,29 @@ class ScopaGM extends Table
         $bOneCardTaken = $this->isTakingOneCard($playedCard, $takenCards, $cardsOnBoard);
 
         // If there is a possible sum, must capture those with the played card
-        $bMultipleCardsTaken = $this->isTakingMultipleCards($playedCard, $takenCards, $cardsOnBoard);
+        $bMultipleCardsTaken = false;
+        if (!$bOneCardTaken) {
+            $bMultipleCardsTaken = $this->isTakingMultipleCards($playedCard, $takenCards, $cardsOnBoard);
+        }
 
         $bIsScopa = $this->isScopa($takenCards, $cardsOnBoard);
 
-        // TODO Change cards location and arguments in the DB
+        if ($bOneCardTaken || $bMultipleCardsTaken) {
+            $sql_scopa = $bIsScopa ? 1 : 0;
+            $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${player_id}', `card_scopa` = ${sql_scopa} WHERE `card_id` = ${card_id}";
+            self::DbQuery( $sql );
+
+            $this->cards->moveCards($taken_ids, 'taken', $player_id);
+
+            self::setGameStateValue('last_player_to_take', $player_id);
+        } else {
+            $this->cards->moveCard($card_id, 'cardsonboard');
+        }
 
         // Notifications
 
-        self::notifyAllPlayers('playCard', clienttranslate('${player_name} plays ${value_displayed} ${suit_displayed}'), array(
+        $notifPlayCard = $bOneCardTaken || $bMultipleCardsTaken ? 'playCardTake' : 'playCard';
+        self::notifyAllPlayers($notifPlayCard, clienttranslate('${player_name} plays ${value_displayed} ${suit_displayed}'), array(
             'i18n' => array( 'suit_displayed', 'value_displayed'),
             'card_id' => $card_id,
             'taken_ids' => $taken_ids,
@@ -396,9 +473,12 @@ class ScopaGM extends Table
         if ($bOneCardTaken) {
             self::notifyAllPlayers('takeCards', clienttranslate('${player_name} takes a pair'), array(
                 'card_id' => $card_id,
+                'suit' => $playedCard['type'],
+                'value' => $playedCard['type_arg'],
                 'taken_ids' => $taken_ids,
                 'player_id' => $player_id,
                 'player_name' => self::getActivePlayerName(),
+                'player_color' => $this->getActivePlayerColor(),
                 'scopa' => $bIsScopa
             ));
         }
@@ -406,9 +486,12 @@ class ScopaGM extends Table
         if ($bMultipleCardsTaken) {
             self::notifyAllPlayers('takeCards', clienttranslate('${player_name} takes a total of ${nbr} cards'), array(
                 'card_id' => $card_id,
+                'suit' => $playedCard['type'],
+                'value' => $playedCard['type_arg'],
                 'taken_ids' => $taken_ids,
                 'player_id' => $player_id,
                 'player_name' => self::getActivePlayerName(),
+                'player_color' => $this->getActivePlayerColor(),
                 'nbr' => count($taken_ids) + 1,
                 'scopa' => $bIsScopa
             ));
@@ -464,18 +547,24 @@ class ScopaGM extends Table
 
     // TODO Check this state for global values
     function stNewRound() {
-        $this->putCardsOnBoard();
+        $this->nextDealer();
+        $cards = $this->putCardsOnBoard();
+        self::notifyAllPlayers('newRound', clienttranslate('A new round is beginning'), array(
+            'cards' => $cards,
+            'dealer' => self::getGameStateValue('dealer')
+        ));
         $this->gamestate->nextState("");
     }
 
     Function stNewHand() {
         $this->giveCardsToPlayers();
+        self::notifyAllPlayers('newHand', clienttranslate('All players get a new hand'), array(
+            'nbrdeck' => $this->getCardsRemainingInDeck()
+        ));
+
         $this->gamestate->nextState("");
     }
     function stNextPlayer() {
-        // TODO see if player get the cards
-
-        // Standard case
         $player_id = self::activeNextPlayer();
         self::giveExtraTime($player_id);
         if ($this->cards->countCardInLocation("hand") > 0) {
@@ -484,11 +573,16 @@ class ScopaGM extends Table
             if ($this->cards->countCardInLocation("deck") > 0) {
                 $this->gamestate->nextState("newHand");
             } else {
-                // ! Not yet implemented
-                // TODO
+                $this->giveRemainingCardsOnBoard();
                 $this->gamestate->nextState("endRound");
             }
         }
+    }
+
+    function stEndRound() {
+        // TODO Update scores and check end of game
+
+        $this->gamestate->nextState("newRound");
     }
 
 //////////////////////////////////////////////////////////////////////////////

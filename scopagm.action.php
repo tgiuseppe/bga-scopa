@@ -45,15 +45,15 @@
       self::setAjaxMode();
       
       $card_id = self::getArg("id", AT_posint, true);
-      $chosen_cards_ids_raw = self::getArg("chosen_ids", AT_numberlist, true);
+      $taken_cards_ids_raw = self::getArg("taken_ids", AT_numberlist, true);
 
-      if ($chosen_cards_ids_raw == "") {
-        $chosen_cards_ids = array();
+      if ($taken_cards_ids_raw == "") {
+        $taken_cards_ids = array();
       } else {
-        $chosen_cards_ids = explode(";", $chosen_cards_ids_raw);
+        $taken_cards_ids = explode(";", $taken_cards_ids_raw);
       }
 
-      $this->game->playCard($card_id, $chosen_cards_ids);
+      $this->game->playCard($card_id, $taken_cards_ids);
       self::ajaxResponse();
     }
     /*

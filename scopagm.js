@@ -25,15 +25,9 @@ function (dojo, declare) {
     return declare("bgagame.scopagm", ebg.core.gamegui, {
         constructor: function(){
             console.log('scopagm constructor');
-            this.cardwidth = 72;
-            this.cardheight = 96;
-              
-            // Here, you can init the global variables of your user interface
-            // Example:
-            // this.myGlobalValue = 0;
-
-            this.deckType = 'fr';
-
+            this.deckType = 'it';
+            this.cardwidth = this.getCardWidth(this.deckType);
+            this.cardheight = this.getCardHeight(this.deckType);
         },
         
         /*
@@ -59,7 +53,12 @@ function (dojo, declare) {
                 var player = gamedatas.players[player_id];
                          
                 // TODO: Setting up players boards if needed
+                let player_board_div = $('player_board_'+ player_id );
+                dojo.place( this.format_block('jstpl_player_board', player), player_board_div );
             }
+
+            this.updateDealer(gamedatas.dealer);
+            this.addTooltipHtmlToClass('dealericon', _('Dealer of this round'), '');
             
             // TODO: Set up your game interface here, according to "gamedatas"
             
@@ -94,11 +93,12 @@ function (dojo, declare) {
             for (let suit = 1; suit <= 4; suit++) {
                 for (let value = 1; value <= 10; value++) {
                     let card_type = this.getCardType(suit, value);
-                    this.playerHand.addItemType(card_type, card_type, this.getDeckImagePath(this.deckType), card_type);
-                    this.board.addItemType(card_type, card_type, this.getDeckImagePath(this.deckType), card_type);
+                    let card_weight = this.getCardWeight(suit, value);
+                    this.playerHand.addItemType(card_type, card_weight, this.getDeckImagePath(this.deckType), card_type);
+                    this.board.addItemType(card_type, card_weight, this.getDeckImagePath(this.deckType), card_type);
                     for ( var color in this.scopatables) {
                         let scopatable = this.scopatables[color];
-                        scopatable.addItemType(card_type, card_type, this.getDeckImagePath(this.deckType), card_type);
+                        scopatable.addItemType(card_type, card_weight, this.getDeckImagePath(this.deckType), card_type);
                     }
                 }
             }
@@ -122,7 +122,7 @@ function (dojo, declare) {
             // Captured cards that are scopa
             for (let i in gamedatas.taken) {
                 let card = gamedatas.taken[i];
-                if (card.scopa) {
+                if (card.scopa == 1) {
                     let suit = card.type;
                     let value = card.type_arg;
                     let color = gamedatas.players[card.location_arg].color;
@@ -133,6 +133,9 @@ function (dojo, declare) {
             // Stock events connection
             dojo.connect(this.playerHand, 'onChangeSelection', this, 'onPlayerHandSelectionChanged');
             dojo.connect(this.board, 'onChangeSelection', this, 'onBoardSelectionChanged');
+
+            // Number of card remaining in the deck
+            this.updateRemainingCardsInDeck(gamedatas.nbrdeck);
  
             // Setup game notifications to handle (see "setupNotifications" method below)
             this.setupNotifications();
@@ -225,13 +228,33 @@ function (dojo, declare) {
 
         ///////////////////////////////////////////////////
         //// Utility methods
+
+        // Cards image info
         
         getDeckImagePath: function(deckType) {
             switch (deckType) {
                 case 'fr':
                     return g_gamethemeurl + 'img/cards_fr.jpg';
                 case 'it':
-                    return g_gamethemeurl + 'img/cards_fr.jpg';
+                    return g_gamethemeurl + 'img/cards_it.jpg';
+            }
+        },
+
+        getCardWidth: function(deckType) {
+            switch (deckType) {
+                case 'fr':
+                    return 72;
+                case 'it':
+                    return 72;
+            }
+        },
+
+        getCardHeight: function(deckType) {
+            switch (deckType) {
+                case 'fr':
+                    return 96;
+                case 'it':
+                    return 123;
             }
         },
 
@@ -239,7 +262,32 @@ function (dojo, declare) {
             return (suit - 1) * 10 + (value - 1);
         },
 
-        playCardOnBoard: function(player_id, suit, value, card_id) {
+        getCardWeight: function(suit, value) {
+            return (value - 1) * 4 + (suit - 1);
+        },
+
+        // Player board
+
+        updateDealer: function(dealer_id) {
+            let dealers_div = document.getElementsByClassName('dealericon');
+            for (let i = 0; i < dealers_div.length; i++) {
+                let dealer_div = dealers_div[i];
+                if (dealer_div.id === 'dealericon_p' + dealer_id) {
+                    dealer_div.style.visibility = 'visible';
+                } else {
+                    dealer_div.style.visibility = 'hidden';
+                }
+            }
+        },
+
+        // Board
+
+        updateRemainingCardsInDeck: function(newValue) {
+            document.getElementById("nbrdeck").innerHTML = newValue;
+        },
+
+        playCardOnBoard: function(player_id, suit, value, card_id, taken_ids) {
+            // Put card on board
             if (player_id != this.player_id) {
                 // Opponent played the card
                 let from = 'overall_player_board_' + player_id;
@@ -254,6 +302,49 @@ function (dojo, declare) {
             }
 
             this.board.addToStockWithId(this.getCardType(suit, value), card_id);
+
+            // Highlight taken cards
+
+            if (taken_ids.length > 0) {
+                this.board.unselectAll();
+                let cardsOnBoard = this.board.getAllItems();
+                for (let i = 0; i < cardsOnBoard.length; i++) {
+                    let id = cardsOnBoard[i].id;
+                    let div_id = this.board.getItemDivId(id);
+                    document.getElementById(div_id).style.opacity = 0.3;
+                }
+                console.log(taken_ids);
+                for (let i = 0; i < taken_ids.length; i++) {
+                    let id = taken_ids[i];
+                    let div_id = this.board.getItemDivId(id);
+                    document.getElementById(div_id).style.opacity = 1;
+                }
+            }
+        },
+
+        takeCardsFromBoard: function(player_id, player_color, suit, value, card_id, taken_ids, scopa) {
+            let to = 'overall_player_board_' + player_id;
+            if (scopa) {
+                let from = 'boardcards_item_' + card_id;
+                this.scopatables[player_color].addToStockWithId(this.getCardType(suit, value), card_id, from);
+                this.board.removeFromStockById(card_id);
+            } else {
+                this.board.removeFromStockById(card_id, to, true);
+            }
+
+            for (let i = 0; i < taken_ids.length; i++) {
+                let id = taken_ids[i];
+                this.board.removeFromStockById(id, to, true);
+            }
+
+            let cardsOnBoard = this.board.getAllItems();
+            for (let i = 0; i < cardsOnBoard.length; i++) {
+                let id = cardsOnBoard[i].id;
+                let div_id = this.board.getItemDivId(id);
+                document.getElementById(div_id).style.opacity = 1;
+            }
+
+            this.board.updateDisplay();
         },
 
 
@@ -273,17 +364,17 @@ function (dojo, declare) {
 
         onPlayerHandSelectionChanged: function() {
             let player_cards = this.playerHand.getSelectedItems();
-            let chosen_cards = this.board.getSelectedItems();
+            let taken_cards = this.board.getSelectedItems();
 
             if (player_cards.length > 0) {
                 let action = 'playCard';
                 if (this.checkAction(action, true)) {
                     let card_id = player_cards[0].id;
-                    let chosen_card_ids = chosen_cards.map(card => card.id).join(";");
+                    let taken_card_ids = taken_cards.map(card => card.id).join(";");
                     
                     this.ajaxcall(
                         "/" + this.game_name + "/" +this.game_name + "/" + action + ".html",
-                        { id: card_id, chosen_ids: chosen_card_ids , lock: true },
+                        { id: card_id, taken_ids: taken_card_ids , lock: true },
                         this,
                         function(result) {},
                         function(is_error) {}
@@ -352,33 +443,80 @@ function (dojo, declare) {
             console.log( 'notifications subscriptions setup' );
             
             // TODO: here, associate your game notifications with local methods
-            
-            // Example 1: standard notification handling
-            // dojo.subscribe( 'cardPlayed', this, "notif_cardPlayed" );
-            
-            // Example 2: standard notification handling + tell the user interface to wait
-            //            during 3 seconds after calling the method in order to let the players
-            //            see what is happening in the game.
-            // dojo.subscribe( 'cardPlayed', this, "notif_cardPlayed" );
-            // this.notifqueue.setSynchronous( 'cardPlayed', 3000 );
-            // 
+
+            dojo.subscribe('playCard', this, 'notif_playCard');
+            dojo.subscribe('playCardTake', this, 'notif_playCard');
+            this.notifqueue.setSynchronous('playCardTake', 3000);
+            dojo.subscribe('takeCards', this, 'notif_takeCards');
+            dojo.subscribe('lastPlay', this, 'notif_lastPlay');
+            this.notifqueue.setSynchronous('lastPlay', 1000);
+
+            dojo.subscribe('newRound', this, 'notif_newRound');
+
+            dojo.subscribe('newHand', this, 'notif_newHand');
+            dojo.subscribe('newHandPlayer', this, 'notif_newHandPlayer');
         },  
         
         // TODO: from this point and below, you can write your game notifications handling methods
         
-        /*
-        Example:
-        
-        notif_cardPlayed: function( notif )
-        {
-            console.log( 'notif_cardPlayed' );
-            console.log( notif );
+        notif_playCard: function(notif) {
+            console.log("notif_playCard");
+
+            this.playCardOnBoard(notif.args.player_id, notif.args.suit, notif.args.value, notif.args.card_id, notif.args.taken_ids);
+        },
+
+        notif_takeCards: function(notif) {
+            console.log("notif_takeCards");
+
+            this.takeCardsFromBoard(notif.args.player_id, notif.args.player_color, notif.args.suit, notif.args.value, notif.args.card_id, notif.args.taken_ids, notif.args.scopa);
+        },
+
+        notif_lastPlay: function(notif) {
+            console.log("notif_lastPlay");
+
+            console.log(notif.args.player_id);
+            let to = 'overall_player_board_' + notif.args.player_id;
+            console.log(to);
+            let cards = notif.args.cards;
+            console.log(cards);
+            for (id in cards) {
+                this.board.removeFromStockById(id, to, true);
+            }
+
+            this.board.updateDisplay();
+        },
+
+        notif_newRound: function(notif) {
+            console.log("notif_newRound");
+
+            let cards = notif.args.cards;
+            for (let i = 0; i < cards.length; i++) {
+                let card = cards[i];
+                let from = "mydeck";
+                this.board.addToStockWithId(this.getCardType(card.type, card.type_arg), card.id, from);
+            }
             
-            // Note: notif.args contains the arguments specified during you "notifyAllPlayers" / "notifyPlayer" PHP call
-            
-            // TODO: play the card in the user interface.
-        },    
-        
-        */
+            this.updateDealer(notif.args.dealer);
+        },
+
+        notif_newHand: function(notif) {
+            console.log("notif_newHand");
+
+            this.updateRemainingCardsInDeck(notif.args.nbrdeck);
+        },
+
+        notif_newHandPlayer: function(notif) {
+            console.log("notif_newHandPlayer");
+
+            let player_id = notif.args.player_id;
+            let cards = notif.args.cards;
+            if(player_id === this.player_id) {
+                for (let i = 0; i < cards.length; i++) {
+                    let card = cards[i];
+                    let from = "mydeck";
+                    this.playerHand.addToStockWithId(this.getCardType(card.type, card.type_arg), card.id, from);
+                }
+            }
+        }
    });             
 });

@@ -15,6 +15,13 @@
 
 /* Note: you must not use any @import directive */
 
+.dealericon {
+    width: 32px;
+    height: 32px;
+    background-repeat: no-repeat;
+    background-image: url('img/dealer-icon.png');
+}
+
 .generalcontainer {
     position: relative;
     display: flex;
@@ -34,7 +41,31 @@
 }
 
 .boardcards {
-    top: 25%;
+    top: 10%;
+}
+
+.mydeck {
+    position: absolute;
+    width: 108px;
+    height: 72px;
+    bottom: 10px;
+    right: 10px;
+    background-image: url(img/deck-rotated.jpg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    border-radius: 4px;
+}
+
+.nbrdeck {
+    position: absolute;
+    width: 48px;
+    top: 31px;
+    left: 56px;
+    background-color: white;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 24pt;
 }
 
 #myhand_wrap {
@@ -51,4 +82,8 @@
 .scopatablecards {
     position: relative;
     height: 101px;
+}
+
+.bordered-card {
+    border: 1px solid black !important;
 }

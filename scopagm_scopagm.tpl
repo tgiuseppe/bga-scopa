@@ -30,6 +30,10 @@
         <div id="board" class="board">
             <div id="boardcards" class="boardcards">
             </div>
+            <div id="mydeck" class="mydeck">
+                <div id="nbrdeck" class="nbrdeck">
+                </div>
+            </div>
         </div>
 
         <div id="myhand_wrap" class="whiteblock">
@@ -55,6 +59,8 @@
 <script type="text/javascript">
 
 // Javascript HTML templates
+
+var jstpl_player_board = '<div class="cp_board"><div id="dealericon_p${id}" class="dealericon"></div></div>';
 
 /*
 // Example:
