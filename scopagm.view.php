@@ -31,6 +31,12 @@
     function getGameName() {
         return "scopagm";
     }    
+
+    function getPlayerTeamById($player_id) {
+      $sql = "SELECT player_team team FROM player WHERE player_id = '$player_id'";
+      return self::getUniqueValueFromDB( $sql );
+    }
+
   	function build_page( $viewArgs )
   	{		
   	    // Get players & players number
@@ -45,7 +51,8 @@
         foreach ($players as $player_id => $info) {
           $this->page->insert_block("scopatable", array(
             "TEAM_NAME" => $players[$player_id]['player_name'],
-            "TEAM_COLOR" => $players[$player_id]['player_color']
+            "TEAM_COLOR" => $players[$player_id]['player_color'],
+            "TEAM_NBR" => $this->getPlayerTeamById($player_id)
           ));
         }
         

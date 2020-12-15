@@ -79,13 +79,19 @@ function (dojo, declare) {
             for( var player_id in gamedatas.players )
             {
                 var player = gamedatas.players[player_id];
-                let color = player.color;
-                if (this.scopatables[color] == null) {
-                    this.scopatables[color] = new ebg.stock();
-                    this.scopatables[color].create(this, $('scopatablecards_' + color), this.cardwidth, this.cardheight);
-                    this.scopatables[color].image_items_per_row = 10;
-                    this.scopatables[color].setSelectionMode(0);
-                    this.scopatables[color].setOverlap(40,0);
+                let team = player.team;
+                console.log(team);
+                if (this.scopatables[team] == null) {
+                    console.log("A");
+                    this.scopatables[team] = new ebg.stock();
+                    console.log("B");
+                    this.scopatables[team].create(this, $('scopatablecards_' + team), this.cardwidth, this.cardheight);
+                    console.log("C");
+                    this.scopatables[team].image_items_per_row = 10;
+                    console.log("D");
+                    this.scopatables[team].setSelectionMode(0);
+                    console.log("E");
+                    this.scopatables[team].setOverlap(40,0);
                 }
             }
 
@@ -96,8 +102,8 @@ function (dojo, declare) {
                     let card_weight = this.getCardWeight(suit, value);
                     this.playerHand.addItemType(card_type, card_weight, this.getDeckImagePath(this.deckType), card_type);
                     this.board.addItemType(card_type, card_weight, this.getDeckImagePath(this.deckType), card_type);
-                    for ( var color in this.scopatables) {
-                        let scopatable = this.scopatables[color];
+                    for ( var team in this.scopatables) {
+                        let scopatable = this.scopatables[team];
                         scopatable.addItemType(card_type, card_weight, this.getDeckImagePath(this.deckType), card_type);
                     }
                 }
@@ -125,8 +131,8 @@ function (dojo, declare) {
                 if (card.scopa == 1) {
                     let suit = card.type;
                     let value = card.type_arg;
-                    let color = gamedatas.players[card.location_arg].color;
-                    this.scopatables[color].addToStockWithId(this.getCardType(suit, value), card.id);
+                    let team = card.location_arg;
+                    this.scopatables[team].addToStockWithId(this.getCardType(suit, value), card.id);
                 }
             }
 
@@ -322,11 +328,11 @@ function (dojo, declare) {
             }
         },
 
-        takeCardsFromBoard: function(player_id, player_color, suit, value, card_id, taken_ids, scopa) {
+        takeCardsFromBoard: function(player_id, player_team, suit, value, card_id, taken_ids, scopa) {
             let to = 'overall_player_board_' + player_id;
             if (scopa) {
                 let from = 'boardcards_item_' + card_id;
-                this.scopatables[player_color].addToStockWithId(this.getCardType(suit, value), card_id, from);
+                this.scopatables[player_team].addToStockWithId(this.getCardType(suit, value), card_id, from);
                 this.board.removeFromStockById(card_id);
             } else {
                 this.board.removeFromStockById(card_id, to, true);
@@ -347,6 +353,13 @@ function (dojo, declare) {
             this.board.updateDisplay();
         },
 
+        updateScore: function(players) {
+            console.log(players);
+
+            for (let player_id in players) {
+                this.scoreCtrl[player_id].setValue( players[player_id].player_score );
+            }
+        },
 
         ///////////////////////////////////////////////////
         //// Player's action
@@ -451,6 +464,9 @@ function (dojo, declare) {
             dojo.subscribe('lastPlay', this, 'notif_lastPlay');
             this.notifqueue.setSynchronous('lastPlay', 1000);
 
+            dojo.subscribe('updateScore', this, 'notif_updateScore');
+            this.notifqueue.setSynchronous('updateScore', 5000);
+
             dojo.subscribe('newRound', this, 'notif_newRound');
 
             dojo.subscribe('newHand', this, 'notif_newHand');
@@ -468,7 +484,7 @@ function (dojo, declare) {
         notif_takeCards: function(notif) {
             console.log("notif_takeCards");
 
-            this.takeCardsFromBoard(notif.args.player_id, notif.args.player_color, notif.args.suit, notif.args.value, notif.args.card_id, notif.args.taken_ids, notif.args.scopa);
+            this.takeCardsFromBoard(notif.args.player_id, notif.args.player_team, notif.args.suit, notif.args.value, notif.args.card_id, notif.args.taken_ids, notif.args.scopa);
         },
 
         notif_lastPlay: function(notif) {
@@ -484,6 +500,12 @@ function (dojo, declare) {
             }
 
             this.board.updateDisplay();
+        },
+
+        notif_updateScore: function(notif) {
+            console.log("notif_updateScore");
+
+            this.updateScore(notif.args.players);
         },
 
         notif_newRound: function(notif) {

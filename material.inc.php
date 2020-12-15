@@ -28,30 +28,30 @@
 */
 
  $this->suits = array(
-   1 => array( 'name' => clienttranslate('heart'),
-               'nametr' => self::_('heart') ),
-   2 => array( 'name' => clienttranslate('diamond'),
-               'nametr' => self::_('diamond') ),
-   3 => array( 'name' => clienttranslate('club'),
-               'nametr' => self::_('club') ),
-   4 => array( 'name' => clienttranslate('spade'),
-               'nametr' => self::_('spade') )
+   1 => array( 'name' => clienttranslate('cups'),
+               'nametr' => self::_('cups') ),
+   2 => array( 'name' => clienttranslate('coins'),
+               'nametr' => self::_('coins') ),
+   3 => array( 'name' => clienttranslate('clubs'),
+               'nametr' => self::_('clubs') ),
+   4 => array( 'name' => clienttranslate('swords'),
+               'nametr' => self::_('swords') )
  );
 
  $this->values_label = array(
-   1 => clienttranslate('A'),
+   1 => clienttranslate('Ace'),
    2 => '2',
    3 => '3',
    4 => '4',
    5 => '5',
    6 => '6',
    7 => '7',
-   8 => clienttranslate('J'),
-   9 => clienttranslate('Q'),
-   10 => clienttranslate('K')
+   8 => clienttranslate('Knave'),
+   9 => clienttranslate('Knight'),
+   10 => clienttranslate('King')
  );
  
- $this->primiera_standard = array(
+ $this->prime_standard = array(
    1 => 16,
    2 => 12,
    3 => 13,

@@ -67,15 +67,31 @@ class ScopaGM extends Table
         // The number of colors defined here must correspond to the maximum number of players allowed for the gams
         $gameinfos = self::getGameinfos();
         $default_colors = $gameinfos['player_colors'];
+
+        $teams = null;
+        switch (count($players)) {
+            case 2:
+                $teams = array(0, 1);
+            break;
+            case 3:
+                $teams = array(0, 1, 2);
+            break;
+            case 4:
+                $teams = array(0, 1, 0, 1);
+            break;
+            case 6:
+                $teams = array(0, 1, 0, 1, 0, 1);
+        }
  
         // Create players
         // Note: if you added some extra field on "player" table in the database (dbmodel.sql), you can initialize it there.
-        $sql = "INSERT INTO player (player_id, player_color, player_canal, player_name, player_avatar) VALUES ";
+        $sql = "INSERT INTO player (player_id, player_color, player_canal, player_name, player_avatar, player_team) VALUES ";
         $values = array();
         foreach( $players as $player_id => $player )
         {
             $color = array_shift( $default_colors );
-            $values[] = "('".$player_id."','$color','".$player['player_canal']."','".addslashes( $player['player_name'] )."','".addslashes( $player['player_avatar'] )."')";
+            $team = array_shift( $teams );
+            $values[] = "('".$player_id."','$color','".$player['player_canal']."','".addslashes( $player['player_name'] )."','".addslashes( $player['player_avatar'] )."','$team')";
         }
         $sql .= implode( $values, ',' );
         self::DbQuery( $sql );
@@ -129,7 +145,7 @@ class ScopaGM extends Table
     
         // Get information about players
         // Note: you can retrieve some extra field you added for "player" table in "dbmodel.sql" if you need it.
-        $sql = "SELECT player_id id, player_score score FROM player ";
+        $sql = "SELECT player_id id, player_score score, player_team team FROM player ";
         $result['players'] = self::getCollectionFromDb( $sql );
   
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
@@ -180,6 +196,21 @@ class ScopaGM extends Table
         In this space, you can put any utility methods useful for your game logic
     */
 
+    function loadCompletePlayersBasicInfos() {
+        $sql = "SELECT * FROM player";
+        $playersRaw = self::getCollectionFromDb( $sql );
+        foreach ($playersRaw as $playerRaw) {
+            $player_id = $playerRaw['player_id'];
+            $players[$player_id]['player_no'] = $playerRaw['player_no'];
+            $players[$player_id]['player_color'] = $playerRaw['player_color'];
+            $players[$player_id]['player_score'] = $playerRaw['player_score'];
+            $players[$player_id]['player_name'] = $playerRaw['player_name'];
+            $players[$player_id]['player_team'] = $playerRaw['player_team'];
+        }
+
+        return $players;
+    }
+
     function getActivePlayerColor() {
         $player_id = self::getActivePlayerId();
         $players = self::loadPlayersBasicInfos();
@@ -195,6 +226,11 @@ class ScopaGM extends Table
             return $players[ $player_id ]['player_color'];
         else
             return null;
+    }
+
+    function getPlayerTeamById($player_id) {
+        $sql = "SELECT player_team team FROM player WHERE player_id = '$player_id'";
+        return self::getUniqueValueFromDB( $sql );
     }
 
     function getCardsRemainingInDeck() {
@@ -249,7 +285,10 @@ class ScopaGM extends Table
             return false;
         }
 
-        // TODO If the capture is made with the last card in the round, it can't be scopa
+        // Can't be scopa if it's the last played card of the round
+        if ($this->cards->countCardInLocation('hand') == 1) {
+            return false;
+        }
 
         // After checking the rules, it's scopa if the player is emptying the board
         if (count($takenCards) == count($cardsOnBoard)) {
@@ -292,8 +331,9 @@ class ScopaGM extends Table
 
     function giveRemainingCardsOnBoard() {
         $winner_id = self::getGameStateValue('last_player_to_take');
+        $team_id = $this->getPlayerTeamById($winner_id);
         $cards = $this->cards->getCardsInLocation('cardsonboard');
-        $this->cards->moveAllCardsInLocation('cardsonboard', 'taken', null, $winner_id);
+        $this->cards->moveAllCardsInLocation('cardsonboard', 'taken', null, $team_id);
         self::notifyAllPlayers('lastPlay', clienttranslate('This round ended. ${player_name} takes the remaining cards on the table'), array(
             'player_id' => $winner_id,
             'player_name' => self::loadPlayersBasicInfos()[$winner_id]['player_name'],
@@ -302,16 +342,227 @@ class ScopaGM extends Table
     }
 
     function updateScore() {
-        $players = self::loadPlayersBasicInfos();
+
+        // Initializing
+        $players = $this->loadCompletePlayersBasicInfos();
+        $teams = array();
         foreach ($players as $player_id => $player) {
-            
+            $nbr = $player['player_team'];
+
+            if ( !isset($teams[$nbr])) {
+                $teams[$nbr] = array();
+                $teams[$nbr]['players'] = array();
+            }
+
+            $teams[$nbr]['players'][] = $player['player_name'];
         }
+
+        // Calculate
+        foreach ($teams as $nbr => $team) {
+            $sql = "SELECT card_id id, card_type type, card_type_arg type_arg, card_location location, card_location_arg location_arg, card_scopa scopa FROM cards WHERE card_location = 'taken' AND card_location_arg = $nbr";
+            $cards = self::getCollectionFromDb( $sql );
+            $teams[$nbr]['cards'] = count($cards);
+            $teams[$nbr]['coins'] = $this->numberCoins($cards);
+            $teams[$nbr]['sevencoin'] = $this->sevencoin($cards);
+            $teams[$nbr]['prime'] = $this->primePoints($cards);
+            $teams[$nbr]['scopa'] = $this->scopaPoints($cards);
+
+            // Winner's catogories that can be assigned immediately
+            if ($teams[$nbr]['sevencoin'] == 1) {
+                $winners['sevencoin'] = $nbr;
+            }
+        }
+
+        // Find winner's categories
+        $winners['cards'] = $this->byQuantityWinnerOf('cards', $teams);
+        $winners['coins'] = $this->byQuantityWinnerOf('coins', $teams);
+        $winners['prime'] = $this->byQuantityWinnerOf('prime', $teams);
+
+        // Update score on DB
+        foreach ($teams as $nbr => $team) {
+            $points = 0;
+            foreach($winners as $category => $winner) {
+                $points += $winner == $nbr ? 1 : 0;
+            }
+            $points += $teams[$nbr]['scopa'];
+            $teams[$nbr]['total'] = $points;
+
+            foreach($players as $player_id => $player) {
+                if ($player['player_team'] == $nbr) {
+                    $players[$player_id]['player_score'] += $points;
+                }
+            }
+
+            $sql = "UPDATE player SET player_score = player_score + $points WHERE player_team = $nbr";
+            self::DbQuery( $sql );
+        }
+
+        // Notify players
+
+        $table = array();
+        $firstRow = array('');
+
+        if (count($players) < 4) {
+            foreach($teams as $nbr => $team) {
+                $firstRow[] = array( 'str' => '${player_name}',
+                                      'args' => array('player_name' => $team['players'][0]),
+                                      'type' => 'header'
+                                    );
+            }
+        } else if (count($players) == 4) {
+            foreach($teams as $nbr => $team) {
+                $firstRow[] = array( 'str' => clienttranslate('${player_name_1} and ${player_name_2}'),
+                                     'args' => array('player_name_1' => $teams[$nbr]['players'][0],
+                                                     'player_name_2' => $teams[$nbr]['players'][1]
+                                                 ),
+                                     'type' => 'header'
+                                    );
+            }
+        } else {
+            foreach($teams as $nbr => $team) {
+                $firstRow[] = array( 'str' => clienttranslate('${player_name_1}, ${player_name_2} and {player_name_3}'),
+                                     'args' => array('player_name_1' => $teams[$nbr]['players'][0],
+                                                     'player_name_2' => $teams[$nbr]['players'][1],
+                                                     'player_name_3' => $teams[$nbr]['players'][2]
+                                                    ),
+                                     'type' => 'header'
+                                    );
+            }
+        }
+        array_push($table, $firstRow);
+
+        $row['cards'] = array( clienttranslate('Cards') );
+        $row['coins'] = array( clienttranslate('Coins') );
+        $row['sevencoin'] = array( clienttranslate('7 of coins') );
+        $row['prime'] = array( clienttranslate('Prime') );
+        $row['scopa'] = array( clienttranslate('Scopa') );
+        $row['total'] = array( clienttranslate('Total') );
+        foreach($teams as $nbr => $team) {
+            // Cards
+            $pointStr = $winner['cards'] == $nbr ? 1 : 0;
+            $pointStr = $pointStr.' ('.$team['cards'].')';
+            array_push($row['cards'], $pointStr);
+
+            // Coins
+            $pointStr = $winner['coins'] == $nbr ? 1 : 0;
+            $pointStr = $pointStr.' ('.$team['coins'].')';
+            array_push($row['coins'], $pointStr);
+
+            // Seven coin
+            $pointStr = $winner['sevencoin'] == $nbr ? 1 : 0;
+            array_push($row['sevencoin'], $pointStr);
+
+            // Prime
+            $pointStr = $winner['prime'] == $nbr ? 1 : 0;
+            $pointStr = $pointStr.' ('.$team['prime'].')';
+            array_push($row['prime'], $pointStr);
+
+            // Scopa
+            $pointStr = $team['scopa'];
+            array_push($row['scopa'], $pointStr);
+
+            // Total
+            $pointStr = $team['total'];
+            array_push($row['total'], $pointStr);
+        }
+        array_push($table, $row['cards']);
+        array_push($table, $row['coins']);
+        array_push($table, $row['sevencoin']);
+        array_push($table, $row['prime']);
+        array_push($table, $row['scopa']);
+        array_push($table, $row['total']);
+
+        self::notifyAllPlayers('tableWindow', '', array(
+            'id' => 'endRoundScoring',
+            'title' => clienttranslate('Round\'s results'),
+            'table' => $table,
+            'closing' => clienttranslate('Close')
+        ));
+
+        self::notifyAllPlayers('updateScore', '', array(
+            'players' => $players
+        ));
+
+        foreach($players as $player_id => $player) {
+            $scores[$player_id] = $player['player_score'];
+        }
+
+        return $scores;
+    }
+
+    function numberCoins($cards) {
+        $sum = 0;
+        foreach ($cards as $card) {
+            $card['type'] == 2 ? $sum++ : $sum;
+        }
+        return $sum;
+    }
+
+    function sevencoin($cards) {
+        foreach ($cards as $card) {
+            if ($card['type'] == 2 && $card['type_arg'] == 7) {
+                return 1;
+            }
+        }
+
+        return 0;
+    }
+
+    function primePoints($cards) {
+        $prime = array(1=>0, 2=>0, 3=>0, 4=>0);
+        
+        foreach ($cards as $card) {
+            $suit = $card['type'];
+            $value = $card['type_arg'];
+            $primeValue = $this->prime_standard[$value];
+
+            $prime[$suit] = $prime[$suit] > $primeValue ? $prime[$suit] : $primeValue;
+        }
+
+        $sum = 0;
+        foreach ($prime as $primeValue) {
+            if ($primeValue == 0) {
+                return 0;
+            }
+
+            $sum += $primeValue;
+        }
+
+        return $sum;
+    }
+
+    function scopaPoints($cards) {
+        $sum = 0;
+        foreach ($cards as $card) {
+            if ($card['scopa'] == 1) {
+                $sum++;
+            }
+        }
+
+        return $sum;
+    }
+
+    function byQuantityWinnerOf($category, $teams) {
+        foreach ($teams as $nbr => $team) {
+            $winnerValue = isset($winner) ? $teams[$winner][$category] : null;
+            $opponentValue = $teams[$nbr][$category];
+
+            if (!isset($winner) || $opponentValue > $winnerValue) {
+                $tie = false;
+                $winner = $nbr;
+            } else if ($winnerValue == $opponentValue) {
+                $tie = true;
+            }
+        }
+
+        return $tie ? -1 : $winner;
     }
 
     function nextDealer() {
         $actualDealer = self::getGameStateValue('dealer');
         $nextDealer = self::getPlayerBefore($actualDealer);
         self::setGameStateValue('dealer', $nextDealer);
+        return $nextDealer;
     }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -445,10 +696,11 @@ class ScopaGM extends Table
 
         if ($bOneCardTaken || $bMultipleCardsTaken) {
             $sql_scopa = $bIsScopa ? 1 : 0;
-            $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${player_id}', `card_scopa` = ${sql_scopa} WHERE `card_id` = ${card_id}";
+            $sql_team = $this->getPlayerTeamById($player_id);
+            $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${sql_team}', `card_scopa` = ${sql_scopa} WHERE `card_id` = ${card_id}";
             self::DbQuery( $sql );
 
-            $this->cards->moveCards($taken_ids, 'taken', $player_id);
+            $this->cards->moveCards($taken_ids, 'taken', $sql_team);
 
             self::setGameStateValue('last_player_to_take', $player_id);
         } else {
@@ -478,7 +730,7 @@ class ScopaGM extends Table
                 'taken_ids' => $taken_ids,
                 'player_id' => $player_id,
                 'player_name' => self::getActivePlayerName(),
-                'player_color' => $this->getActivePlayerColor(),
+                'player_team' => $this->getPlayerTeamById($player_id),
                 'scopa' => $bIsScopa
             ));
         }
@@ -491,7 +743,7 @@ class ScopaGM extends Table
                 'taken_ids' => $taken_ids,
                 'player_id' => $player_id,
                 'player_name' => self::getActivePlayerName(),
-                'player_color' => $this->getActivePlayerColor(),
+                'player_team' => $this->getPlayerTeamById($player_id),
                 'nbr' => count($taken_ids) + 1,
                 'scopa' => $bIsScopa
             ));
@@ -547,11 +799,13 @@ class ScopaGM extends Table
 
     // TODO Check this state for global values
     function stNewRound() {
-        $this->nextDealer();
+        $dealer = $this->nextDealer();
+        $this->gamestate->changeActivePlayer( self::getPlayerAfter($dealer) );
+
         $cards = $this->putCardsOnBoard();
         self::notifyAllPlayers('newRound', clienttranslate('A new round is beginning'), array(
             'cards' => $cards,
-            'dealer' => self::getGameStateValue('dealer')
+            'dealer' => $dealer
         ));
         $this->gamestate->nextState("");
     }
@@ -580,9 +834,20 @@ class ScopaGM extends Table
     }
 
     function stEndRound() {
-        // TODO Update scores and check end of game
+        $scores = $this->updateScore();
+        $isEndGame = false;
+        foreach($scores as $player_id => $score) {
+            if ($score >= 11) {
+                $isEndGame = true;
+                break;
+            }
+        }
 
-        $this->gamestate->nextState("newRound");
+        if ($isEndGame) {
+            $this->gamestate->nextState("endGame");
+        } else {
+            $this->gamestate->nextState("newRound");
+        }
     }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -625,6 +890,8 @@ class ScopaGM extends Table
 
         throw new feException( "Zombie mode not supported at this game state: ".$statename );
     }
+
+    // METHOD TESTS
     
 ///////////////////////////////////////////////////////////////////////////////////:
 ////////// DB upgrade

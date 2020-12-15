@@ -49,7 +49,7 @@
             <div class="scopatablename" style="color:#{TEAM_COLOR}">
                 {TEAM_NAME}
             </div>
-            <div class="scopatablecards" id="scopatablecards_{TEAM_COLOR}">
+            <div class="scopatablecards" id="scopatablecards_{TEAM_NBR}">
             </div>
         </div>
         <!-- END scopatable -->
