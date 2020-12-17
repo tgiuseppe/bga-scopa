@@ -48,12 +48,37 @@
         $template = self::getGameName()."_".self::getGameName();
 
         $this->page->begin_block($template, "scopatable");
-        foreach ($players as $player_id => $info) {
-          $this->page->insert_block("scopatable", array(
-            "TEAM_NAME" => $players[$player_id]['player_name'],
-            "TEAM_COLOR" => $players[$player_id]['player_color'],
-            "TEAM_NBR" => $this->getPlayerTeamById($player_id)
-          ));
+        if (count($players) < 4) {
+          foreach ($players as $player_id => $player) {
+            $this->page->insert_block("scopatable", array(
+              "TEAM_NAME" => $players[$player_id]['player_name'],
+              "TEAM_COLOR" => $players[$player_id]['player_color'],
+              "TEAM_NBR" => $this->getPlayerTeamById($player_id)
+            ));
+          }
+        } else {
+
+          $teams = array();
+          foreach($players as $player_id => $player) {
+            $nbr = $this->getPlayerTeamById($player_id);
+            $teams[$nbr]['names'][] = $player['player_name'];
+            $teams[$nbr]['color'] = $players[$player_id]['player_color'];
+          }
+          
+          $name = array();
+
+          foreach ($teams as $nbr => $team) {
+            if (count($players) == 4) {
+              $name[$nbr] = $team['names'][0]." - ".$team['names'][1];
+            } else {
+              $name[$nbr] = $team['names'][0]." - ".$team['names'][1]." - ".$team['names'][2];
+            }
+            $this->page->insert_block("scopatable", array(
+              "TEAM_NAME" => $name[$nbr],
+              "TEAM_COLOR" => $teams[$nbr]['color'],
+              "TEAM_NBR" => $nbr
+            ));
+          }
         }
         
         /*********** Translations ***********/

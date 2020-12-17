@@ -89,13 +89,17 @@ class ScopaGM extends Table
         $values = array();
         foreach( $players as $player_id => $player )
         {
-            $color = array_shift( $default_colors );
             $team = array_shift( $teams );
+            $color = $default_colors[$team];
+
             $values[] = "('".$player_id."','$color','".$player['player_canal']."','".addslashes( $player['player_name'] )."','".addslashes( $player['player_avatar'] )."','$team')";
         }
         $sql .= implode( $values, ',' );
         self::DbQuery( $sql );
-        self::reattributeColorsBasedOnPreferences( $players, $gameinfos['player_colors'] );
+
+        if (count($players) < 4) {
+            self::reattributeColorsBasedOnPreferences( $players, $gameinfos['player_colors'] );
+        }
         self::reloadPlayersBasicInfos();
         
         /************ Start the game initialization *****/
@@ -182,9 +186,14 @@ class ScopaGM extends Table
     */
     function getGameProgression()
     {
-        // TODO: compute and return the game progression
 
-        return 0;
+        // TODO: compute and return the game progression (not always games end on points threshold)
+        $sql = "SELECT avg(player_score) as average FROM player";
+        $result = self::getUniqueValueFromDB( $sql );
+        $result = $result * 100 / 11;
+        $result = $result < 100 ? $result : 100;
+
+        return $result;
     }
 
 
@@ -286,7 +295,8 @@ class ScopaGM extends Table
         }
 
         // Can't be scopa if it's the last played card of the round
-        if ($this->cards->countCardInLocation('hand') == 1) {
+        if ($this->cards->countCardInLocation('deck') == 0
+            && $this->cards->countCardInLocation('hand') == 1) {
             return false;
         }
 
@@ -439,21 +449,21 @@ class ScopaGM extends Table
         $row['total'] = array( clienttranslate('Total') );
         foreach($teams as $nbr => $team) {
             // Cards
-            $pointStr = $winner['cards'] == $nbr ? 1 : 0;
+            $pointStr = $winners['cards'] == $nbr ? 1 : 0;
             $pointStr = $pointStr.' ('.$team['cards'].')';
             array_push($row['cards'], $pointStr);
 
             // Coins
-            $pointStr = $winner['coins'] == $nbr ? 1 : 0;
+            $pointStr = $winners['coins'] == $nbr ? 1 : 0;
             $pointStr = $pointStr.' ('.$team['coins'].')';
             array_push($row['coins'], $pointStr);
 
             // Seven coin
-            $pointStr = $winner['sevencoin'] == $nbr ? 1 : 0;
+            $pointStr = $winners['sevencoin'] == $nbr ? 1 : 0;
             array_push($row['sevencoin'], $pointStr);
 
             // Prime
-            $pointStr = $winner['prime'] == $nbr ? 1 : 0;
+            $pointStr = $winners['prime'] == $nbr ? 1 : 0;
             $pointStr = $pointStr.' ('.$team['prime'].')';
             array_push($row['prime'], $pointStr);
 
@@ -803,6 +813,9 @@ class ScopaGM extends Table
         $this->gamestate->changeActivePlayer( self::getPlayerAfter($dealer) );
 
         $cards = $this->putCardsOnBoard();
+        $sql = "UPDATE cards SET card_scopa = 0";
+        self::DbQuery( $sql );
+
         self::notifyAllPlayers('newRound', clienttranslate('A new round is beginning'), array(
             'cards' => $cards,
             'dealer' => $dealer

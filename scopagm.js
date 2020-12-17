@@ -174,7 +174,7 @@ function (dojo, declare) {
            */
            
            
-            case 'dummmy':
+            case 'newRound':
                 break;
             }
         },
@@ -333,7 +333,7 @@ function (dojo, declare) {
             if (scopa) {
                 let from = 'boardcards_item_' + card_id;
                 this.scopatables[player_team].addToStockWithId(this.getCardType(suit, value), card_id, from);
-                this.board.removeFromStockById(card_id);
+                this.board.removeFromStockById(card_id, undefined, true);
             } else {
                 this.board.removeFromStockById(card_id, to, true);
             }
@@ -359,6 +359,8 @@ function (dojo, declare) {
             for (let player_id in players) {
                 this.scoreCtrl[player_id].setValue( players[player_id].player_score );
             }
+
+            
         },
 
         ///////////////////////////////////////////////////
@@ -498,8 +500,6 @@ function (dojo, declare) {
             for (id in cards) {
                 this.board.removeFromStockById(id, to, true);
             }
-
-            this.board.updateDisplay();
         },
 
         notif_updateScore: function(notif) {
@@ -517,7 +517,13 @@ function (dojo, declare) {
                 let from = "mydeck";
                 this.board.addToStockWithId(this.getCardType(card.type, card.type_arg), card.id, from);
             }
+
+            for (let team in this.scopatables) {
+                this.scopatables[team].removeAll();
+            }
             
+            this.board.updateDisplay();
+
             this.updateDealer(notif.args.dealer);
         },
 
