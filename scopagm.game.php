@@ -188,7 +188,7 @@ class ScopaGM extends Table
     {
 
         // TODO: compute and return the game progression (not always games end on points threshold)
-        $sql = "SELECT avg(player_score) as average FROM player";
+        $sql = "SELECT max(player_score) FROM player";
         $result = self::getUniqueValueFromDB( $sql );
         $result = $result * 100 / 11;
         $result = $result < 100 ? $result : 100;

@@ -67,6 +67,7 @@ $machinestates = array(
         "description" => "",
         "type" => "game",
         "action" => "stNewRound",
+        "updateGameProgression" => true,
         "transitions" => array( "" => 21 )
     ),
 
@@ -102,7 +103,6 @@ $machinestates = array(
         "description" => "",
         "type" => "game",
         "action" => "stEndRound",
-        "updateGameProgression" => true,
         "transitions" => array( "newRound" => 20, "endGame" => 99 )
     ),  
     
