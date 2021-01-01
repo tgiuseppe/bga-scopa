@@ -14,22 +14,31 @@
   *
   */
 class SCPPointsCalculator {
-    private final SEVENCOIN_TYPE = 2;
-    private final SEVENCOIN_TYPE_ARG = 7;
-    private final PRIME_STANDARD_LABEL = "prime_standard";
+    private const COIN_TYPE = 2;
+    private const SEVENCOIN_TYPE_ARG = 7;
+    private const PRIME_STANDARD_LABEL = "prime_standard";
+
     private $cards = array();
 
-    function __construct(array $cards) {
-        $this->cards = $cards;
+    function __construct(array $inCards) {
+        $this->cards = $inCards;
     }
 
     function cardsTaken() {
-        return count($cards);
+        return count($this->cards);
+    }
+
+    function coinsTaken() {
+        $sum = 0;
+        foreach ($this->cards as $card) {
+            $sum += $card['type'] == self::COIN_TYPE ? 1 : 0;
+        }
+        return $sum;
     }
 
     function sevencoinTaken() {
-        foreach ($cards as $card) {
-            if ($card['type'] == $this->SEVENCOIN_TYPE && $card['type_arg'] == $this->SEVENCOIN_TYPE_ARG) {
+        foreach ($this->cards as $card) {
+            if ($card['type'] == self::COIN_TYPE && $card['type_arg'] == self::SEVENCOIN_TYPE_ARG) {
                 return 1;
             }
         }
@@ -38,10 +47,10 @@ class SCPPointsCalculator {
     }
 
     function primeTaken(string $primeType, array $primeValues = array()) {
-        if ($primeType == $this->PRIME_STANDARD_LABEL) {
+        if ($primeType == self::PRIME_STANDARD_LABEL) {
             $prime = array(1=>0, 2=>0, 3=>0, 4=>0);
 
-            foreach ($cards as $card) {
+            foreach ($this->cards as $card) {
                 $suit = $card['type'];
                 $value = $card['type_arg'];
                 $primeValue = $primeValues[$value];
@@ -64,7 +73,7 @@ class SCPPointsCalculator {
 
     function scopasTaken() {
         $sum = 0;
-        foreach ($cards as $card) {
+        foreach ($this->cards as $card) {
             if ($card['scopa'] == 1) {
                 $sum++;
             }

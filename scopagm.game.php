@@ -380,11 +380,14 @@ class ScopaGM extends Table
         foreach ($teams as $nbr => $team) {
             $sql = "SELECT card_id id, card_type type, card_type_arg type_arg, card_location location, card_location_arg location_arg, card_scopa scopa FROM cards WHERE card_location = 'taken' AND card_location_arg = $nbr";
             $cards = self::getCollectionFromDb( $sql );
-            $teams[$nbr]['cards'] = count($cards);
-            $teams[$nbr]['coins'] = $this->numberCoins($cards);
-            $teams[$nbr]['sevencoin'] = $this->sevencoin($cards);
-            $teams[$nbr]['prime'] = $this->primePoints($cards);
-            $teams[$nbr]['scopa'] = $this->scopaPoints($cards);
+
+            $pointsCalculator = new SCPPointsCalculator($cards);
+            $primeLabel = "prime_standard";
+            $teams[$nbr]['cards'] = $pointsCalculator->cardsTaken();
+            $teams[$nbr]['coins'] = $pointsCalculator->coinsTaken();
+            $teams[$nbr]['sevencoin'] = $pointsCalculator->sevencoinTaken();
+            $teams[$nbr]['prime'] = $pointsCalculator->primeTaken($primeLabel, $this->prime_standard);
+            $teams[$nbr]['scopa'] = $pointsCalculator->scopasTaken();;
 
             // Winner's catogories that can be assigned immediately
             if ($teams[$nbr]['sevencoin'] == 1) {
@@ -507,58 +510,6 @@ class ScopaGM extends Table
         }
 
         return $scores;
-    }
-
-    function numberCoins($cards) {
-        $sum = 0;
-        foreach ($cards as $card) {
-            $card['type'] == 2 ? $sum++ : $sum;
-        }
-        return $sum;
-    }
-
-    function sevencoin($cards) {
-        foreach ($cards as $card) {
-            if ($card['type'] == 2 && $card['type_arg'] == 7) {
-                return 1;
-            }
-        }
-
-        return 0;
-    }
-
-    function primePoints($cards) {
-        $prime = array(1=>0, 2=>0, 3=>0, 4=>0);
-        
-        foreach ($cards as $card) {
-            $suit = $card['type'];
-            $value = $card['type_arg'];
-            $primeValue = $this->prime_standard[$value];
-
-            $prime[$suit] = $prime[$suit] > $primeValue ? $prime[$suit] : $primeValue;
-        }
-
-        $sum = 0;
-        foreach ($prime as $primeValue) {
-            if ($primeValue == 0) {
-                return 0;
-            }
-
-            $sum += $primeValue;
-        }
-
-        return $sum;
-    }
-
-    function scopaPoints($cards) {
-        $sum = 0;
-        foreach ($cards as $card) {
-            if ($card['scopa'] == 1) {
-                $sum++;
-            }
-        }
-
-        return $sum;
     }
 
     function byQuantityWinnerOf($category, $teams) {
@@ -732,11 +683,19 @@ class ScopaGM extends Table
         $statRoundsNbr = self::getStat('rounds_number');
 
         if ($bOneCardTaken || $bMultipleCardsTaken) {
-            self::incStat(count($takenCards) + 1, 'cards_taken', $player_id);
+            $cards = array();
+            array_push($cards, $playedCard);
+            $pointsCalculator = new SCPPointsCalculator($cards);
+
+            // Cards
+            self::incStat($pointsCalculator->cardsTaken(), 'cards_taken', $player_id);
             $statCardsTaken = self::getStat('cards_taken', $player_id);
             self::setStat($statCardsTaken / $statRoundsNbr, 'cards_taken_per_round', $player_id);
 
-            
+            // Coins
+            self::incStat($pointsCalculator->coinsTaken(), 'coins_taken', $player_id);
+            $statCoinsTaken = self::getStat('coins_taken', $player_id);
+            self::setStat($statCoinsTaken / $statRoundsNbr, 'coins_taken_per_round', $player_id);
         }
 
         // Notifications

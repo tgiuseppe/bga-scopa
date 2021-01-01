@@ -100,6 +100,9 @@ $stats_type = array(
         "scopa_points_per_round" => array("id"=> 18,
                     "name" => totranslate("Average of scopa gained per round"),
                     "type" => "float" ),
+        "last_take_numbers" => array("id"=> 19,
+                    "name" => totranslate("Number of times of last take"),
+                    "type" => "int" ),
                     
     
 /*
