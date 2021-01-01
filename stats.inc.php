@@ -52,8 +52,8 @@ $stats_type = array(
     // Statistics global to table
     "table" => array(
 
-        "turns_number" => array("id"=> 10,
-                    "name" => totranslate("Number of turns"),
+        "rounds_number" => array("id"=> 10,
+                    "name" => totranslate("Number of rounds"),
                     "type" => "int" ),
 
 /*
@@ -73,9 +73,34 @@ $stats_type = array(
     // Statistics existing for each player
     "player" => array(
 
-        "turns_number" => array("id"=> 10,
-                    "name" => totranslate("Number of turns"),
+        "cards_taken" => array("id"=> 10,
+                    "name" => totranslate("Number of cards taken"),
                     "type" => "int" ),
+        "cards_taken_per_round" => array("id"=> 11,
+                    "name" => totranslate("Number of cards taken per round"),
+                    "type" => "float" ),
+        "coins_taken" => array("id"=> 12,
+                    "name" => totranslate("Number of coins cards taken"),
+                    "type" => "int" ),
+        "coins_taken_per_round" => array("id"=> 13,
+                    "name" => totranslate("Number of coins cards taken per round"),
+                    "type" => "float" ),
+        "prime_points" => array("id"=> 14,
+                    "name" => totranslate("Total of prime points gained"),
+                    "type" => "int" ),
+        "prime_points_per_round" => array("id"=> 15,
+                    "name" => totranslate("Average of prime points gained per round"),
+                    "type" => "float" ),
+        "sevencoins_taken" => array("id"=> 16,
+                    "name" => totranslate("Total of seven of coins taken"),
+                    "type" => "int" ),
+        "scopa_points" => array("id"=> 17,
+                    "name" => totranslate("Total of scopa gained"),
+                    "type" => "int" ),
+        "scopa_points_per_round" => array("id"=> 18,
+                    "name" => totranslate("Average of scopa gained per round"),
+                    "type" => "float" ),
+                    
     
 /*
         Examples:    

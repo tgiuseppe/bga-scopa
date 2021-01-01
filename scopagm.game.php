@@ -18,6 +18,7 @@
 
 
 require_once( APP_GAMEMODULE_PATH.'module/table/table.game.php' );
+require_once('modules/SCPPointsCalculator.php');
 
 
 class ScopaGM extends Table
@@ -112,6 +113,16 @@ class ScopaGM extends Table
         // (note: statistics used in this file must be defined in your stats.inc.php file)
         //self::initStat( 'table', 'table_teststat1', 0 );    // Init a table statistics
         //self::initStat( 'player', 'player_teststat1', 0 );  // Init a player statistics (for all players)
+        self::initStat('table', 'rounds_number', 0);
+        self::initStat('player', 'cards_taken', 0);
+        self::initStat('player', 'cards_taken_per_round', 0);
+        self::initStat('player', 'coins_taken', 0);
+        self::initStat('player', 'coins_taken_per_round', 0);
+        self::initStat('player', 'prime_points', 0);
+        self::initStat('player', 'prime_points_per_round', 0);
+        self::initStat('player', 'sevencoins_taken', 0);
+        self::initStat('player', 'scopa_points', 0);
+        self::initStat('player', 'scopa_points_per_round', 0);
 
         // TODO: setup the initial game situation here
        
@@ -253,15 +264,11 @@ class ScopaGM extends Table
 
         foreach ($players as $player_id => $player) {
             $cards = $this->cards->pickCards(3, 'deck', $player_id);
-            $this->notifyPlayerNewHand($player_id, $cards);
+            self::notifyPlayer($player_id, 'newHandPlayer', '', array(
+                'player_id' => $player_id,
+                'cards' => $cards
+            ));
         }
-    }
-
-    function notifyPlayerNewHand($player_id, $cards) {
-        self::notifyPlayer($player_id, 'newHandPlayer', '', array(
-            'player_id' => $player_id,
-            'cards' => $cards
-        ));
     }
 
     function putCardsOnBoard() {
@@ -297,6 +304,8 @@ class ScopaGM extends Table
         // Can't be scopa if it's the last played card of the round
         if ($this->cards->countCardInLocation('deck') == 0
             && $this->cards->countCardInLocation('hand') == 1) {
+            // ! deck count = 0 means we are in the last steps of the round
+            // ! hand count = 1 means that only one player has a card in hand
             return false;
         }
 
@@ -649,6 +658,7 @@ class ScopaGM extends Table
 
     function playCard($card_id, $taken_ids) {
         self::checkAction("playCard");
+
         $player_id = self::getActivePlayerId();
 
         $playedCard = null;
@@ -715,6 +725,18 @@ class ScopaGM extends Table
             self::setGameStateValue('last_player_to_take', $player_id);
         } else {
             $this->cards->moveCard($card_id, 'cardsonboard');
+        }
+
+        // TODO Stats
+
+        $statRoundsNbr = self::getStat('rounds_number');
+
+        if ($bOneCardTaken || $bMultipleCardsTaken) {
+            self::incStat(count($takenCards) + 1, 'cards_taken', $player_id);
+            $statCardsTaken = self::getStat('cards_taken', $player_id);
+            self::setStat($statCardsTaken / $statRoundsNbr, 'cards_taken_per_round', $player_id);
+
+            
         }
 
         // Notifications
@@ -815,6 +837,8 @@ class ScopaGM extends Table
         $cards = $this->putCardsOnBoard();
         $sql = "UPDATE cards SET card_scopa = 0";
         self::DbQuery( $sql );
+
+        self::incStat(1, 'rounds_number');
 
         self::notifyAllPlayers('newRound', clienttranslate('A new round is beginning'), array(
             'cards' => $cards,
