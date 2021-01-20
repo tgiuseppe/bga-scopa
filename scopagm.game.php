@@ -111,8 +111,6 @@ class ScopaGM extends Table
         
         // Init game statistics
         // (note: statistics used in this file must be defined in your stats.inc.php file)
-        //self::initStat( 'table', 'table_teststat1', 0 );    // Init a table statistics
-        //self::initStat( 'player', 'player_teststat1', 0 );  // Init a player statistics (for all players)
         self::initStat('table', 'rounds_number', 0);
         self::initStat('player', 'cards_taken', 0);
         self::initStat('player', 'cards_taken_per_round', 0);
@@ -123,6 +121,7 @@ class ScopaGM extends Table
         self::initStat('player', 'sevencoins_taken', 0);
         self::initStat('player', 'scopa_points', 0);
         self::initStat('player', 'scopa_points_per_round', 0);
+        self::initStat('player', 'last_take_numbers', 0);
 
         // TODO: setup the initial game situation here
        
@@ -352,7 +351,10 @@ class ScopaGM extends Table
         $winner_id = self::getGameStateValue('last_player_to_take');
         $team_id = $this->getPlayerTeamById($winner_id);
         $cards = $this->cards->getCardsInLocation('cardsonboard');
-        $this->cards->moveAllCardsInLocation('cardsonboard', 'taken', null, $team_id);
+
+        $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${team_id}', `card_location_arg_2` = '${winner_id}' WHERE `card_location` = 'cardsonboard'";
+        self::DbQuery( $sql );
+
         self::notifyAllPlayers('lastPlay', clienttranslate('This round ended. ${player_name} takes the remaining cards on the table'), array(
             'player_id' => $winner_id,
             'player_name' => self::loadPlayersBasicInfos()[$winner_id]['player_name'],
@@ -393,6 +395,15 @@ class ScopaGM extends Table
             if ($teams[$nbr]['sevencoin'] == 1) {
                 $winners['sevencoin'] = $nbr;
             }
+        }
+
+        // Stats points as team
+        $nbrRounds = self::getStat('rounds_number');
+        foreach($players as $player_id => $player) {
+            $nbr = $player['player_team'];
+
+            self::incStat( $teams[$nbr]['prime'], 'prime_points', $player_id);
+            self::setStat( self::getStat('prime_points', $player_id) / $nbrRounds, 'prime_points_per_round', $player_id);
         }
 
         // Find winner's categories
@@ -510,6 +521,40 @@ class ScopaGM extends Table
         }
 
         return $scores;
+    }
+
+    function updateEndRoundPlayerStats() {
+        // TODO
+        $players = self::loadPlayersBasicInfos();
+        $lastPlayerToTake = self::getGameStateValue('last_player_to_take');
+
+        foreach($players as $player_id => $player) {
+            $sql = "SELECT card_id id, card_type type, card_type_arg type_arg, card_location location, card_location_arg location_arg, card_scopa scopa FROM cards WHERE card_location_arg_2 = '${player_id}'";
+            $cards = self::getCollectionFromDb($sql);
+            $pointsCalculator = new SCPPointsCalculator($cards);
+            
+            $nbrRounds = self::getStat('rounds_number');
+
+            // Cards
+            self::incStat( $pointsCalculator->cardsTaken(), 'cards_taken', $player_id );
+            self::setStat( self::getStat('cards_taken', $player_id) / $nbrRounds, 'cards_taken_per_round', $player_id );
+
+            // Coins
+            self::incStat( $pointsCalculator->coinsTaken(), 'coins_taken', $player_id );
+            self::setStat( self::getStat('coins_taken', $player_id) / $nbrRounds, 'coins_taken_per_round', $player_id );
+
+            // Seven coin
+            self::incStat( $pointsCalculator->sevencoinTaken(), 'sevencoins_taken', $player_id);
+
+            // Scopas
+            self::incStat( $pointsCalculator->scopasTaken(), 'scopa_points', $player_id );
+            self::setStat( self::getStat('scopa_points', $player_id) / $nbrRounds, 'scopa_points_per_round', $player_id );
+
+            // Last player
+            if ($player_id == $lastPlayerToTake) {
+                self::incStat( 1, 'last_take_numbers', $player_id );
+            }
+        }
     }
 
     function byQuantityWinnerOf($category, $teams) {
@@ -668,34 +713,20 @@ class ScopaGM extends Table
         if ($bOneCardTaken || $bMultipleCardsTaken) {
             $sql_scopa = $bIsScopa ? 1 : 0;
             $sql_team = $this->getPlayerTeamById($player_id);
-            $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${sql_team}', `card_scopa` = ${sql_scopa} WHERE `card_id` = ${card_id}";
+
+            // Card id
+            $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${sql_team}', `card_location_arg_2` = '${player_id}', `card_scopa` = ${sql_scopa} WHERE `card_id` = ${card_id}";
             self::DbQuery( $sql );
 
-            $this->cards->moveCards($taken_ids, 'taken', $sql_team);
+            // Taken cards from board
+            $sql_ids = implode(',', $taken_ids);
+            self::debug($sql_ids);
+            $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${sql_team}', `card_location_arg_2` = '${player_id}' WHERE `card_id` IN (${sql_ids})";
+            self::DbQuery( $sql );
 
             self::setGameStateValue('last_player_to_take', $player_id);
         } else {
             $this->cards->moveCard($card_id, 'cardsonboard');
-        }
-
-        // TODO Stats
-
-        $statRoundsNbr = self::getStat('rounds_number');
-
-        if ($bOneCardTaken || $bMultipleCardsTaken) {
-            $cards = array();
-            array_push($cards, $playedCard);
-            $pointsCalculator = new SCPPointsCalculator($cards);
-
-            // Cards
-            self::incStat($pointsCalculator->cardsTaken(), 'cards_taken', $player_id);
-            $statCardsTaken = self::getStat('cards_taken', $player_id);
-            self::setStat($statCardsTaken / $statRoundsNbr, 'cards_taken_per_round', $player_id);
-
-            // Coins
-            self::incStat($pointsCalculator->coinsTaken(), 'coins_taken', $player_id);
-            $statCoinsTaken = self::getStat('coins_taken', $player_id);
-            self::setStat($statCoinsTaken / $statRoundsNbr, 'coins_taken_per_round', $player_id);
         }
 
         // Notifications
@@ -794,7 +825,7 @@ class ScopaGM extends Table
         $this->gamestate->changeActivePlayer( self::getPlayerAfter($dealer) );
 
         $cards = $this->putCardsOnBoard();
-        $sql = "UPDATE cards SET card_scopa = 0";
+        $sql = "UPDATE cards SET card_scopa = 0, card_location_arg_2 = null";
         self::DbQuery( $sql );
 
         self::incStat(1, 'rounds_number');
@@ -831,9 +862,10 @@ class ScopaGM extends Table
 
     function stEndRound() {
         $scores = $this->updateScore();
+        $this->updateEndRoundPlayerStats();
         $isEndGame = false;
         foreach($scores as $player_id => $score) {
-            if ($score >= 11) {
+            if ($score >= 4) {
                 $isEndGame = true;
                 break;
             }
