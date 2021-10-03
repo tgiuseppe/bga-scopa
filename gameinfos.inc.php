@@ -16,16 +16,16 @@ $gameinfos = array(
 'game_name' => "Scopa",
 
 // Game designer (or game designers, separated by commas)
-'designer' => '',       
+'designer' => '(Uncredited)',       
 
 // Game artist (or game artists, separated by commas)
-'artist' => '',         
+'artist' => 'Stephen Conway',         
 
 // Year of FIRST publication of this game. Can be negative.
 'year' => 1600,                 
 
 // Game publisher (use empty string if there is no publisher)
-'publisher' => '',                     
+'publisher' => '(Public Domain)',                     
 
 // Url of game publisher website
 'publisher_website' => '',   
@@ -70,7 +70,7 @@ $gameinfos = array(
 
 // If in the game, all losers are equal (no score to rank them or explicit in the rules that losers are not ranked between them), set this to true 
 // The game end result will display "Winner" for the 1st player and "Loser" for all other players
-'losers_not_ranked' => false,
+'losers_not_ranked' => true,
 
 // Allow to rank solo games for games where it's the only available mode (ex: Thermopyles). Should be left to false for games where solo mode exists in addition to multiple players mode.
 'solo_mode_ranked' => false,
@@ -143,7 +143,7 @@ $gameinfos = array(
 //  http://en.doc.boardgamearena.com/Game_meta-information:_gameinfos.inc.php
 //  IMPORTANT: this list should be ORDERED, with the most important tag first.
 //  IMPORTANT: it is mandatory that the FIRST tag is 1, 2, 3 and 4 (= game category)
-'tags' => array( 2 ),
+'tags' => array( 2, 200, 23 ),
 
 
 //////// BGA SANDBOX ONLY PARAMETERS (DO NOT MODIFY)

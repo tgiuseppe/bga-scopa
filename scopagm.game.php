@@ -35,10 +35,11 @@ class ScopaGM extends Table
         self::initGameStateLabels( array( 
             //    Variables
             "dealer" => 10,
-            "last_player_to_take" => 11
+            "last_player_to_take" => 11,
+            "match_points" => 12,
             
-            //      ...
-            //    "my_first_game_variant" => 100,
+         
+            "game_length" => 100,
             //    "my_second_game_variant" => 101,
             //      ...
         ) );
@@ -108,6 +109,21 @@ class ScopaGM extends Table
         self::setGameStateInitialValue( 'dealer', 0 ); // Here just to group all global values initialization
         self::setGameStateInitialValue( 'last_player_to_take', 0); // It's impossible to end a round with no takes, so there's no need to initialize it to an id
         
+        // Set match points according to game length
+        $gmlen = self::getGameStateValue('game_length');
+
+        switch ($gmlen) {
+
+            case 1: 
+                self::setGameStateInitialValue('match_points', 11);
+                break;
+            case 3: 
+                self::setGameStateInitialValue('match_points', 31);
+                break;
+            default:
+                self::setGameStateInitialValue('match_points', 21);
+        }
+
         // Init game statistics
         // (note: statistics used in this file must be defined in your stats.inc.php file)
         //self::initStat( 'table', 'table_teststat1', 0 );    // Init a table statistics
@@ -189,8 +205,9 @@ class ScopaGM extends Table
 
         // TODO: compute and return the game progression (not always games end on points threshold)
         $sql = "SELECT max(player_score) FROM player";
+        $match_points = (int) self::getGameStateValue('match_points');
         $result = self::getUniqueValueFromDB( $sql );
-        $result = $result * 100 / 11;
+        $result = $result * 100 / $match_points;
         $result = $result < 100 ? $result : 100;
 
         return $result;
@@ -849,8 +866,13 @@ class ScopaGM extends Table
     function stEndRound() {
         $scores = $this->updateScore();
         $isEndGame = false;
+        $match_points = (int) self::getGameStateValue('match_points');
+
         foreach($scores as $player_id => $score) {
-            if ($score >= 11) {
+            self::dump( "Player ID: ", $player_id );
+            self::dump( "Score: ", $score );
+            self::dump( "Match points: ", $match_points );
+            if ($score > $match_points ) {
                 $isEndGame = true;
                 break;
             }
