@@ -37,11 +37,12 @@ class ScopaGM extends Table
             "dealer" => 10,
             "last_player_to_take" => 11,
             "match_points" => 12,
+            "round_number" => 13,
             
          
             "game_length" => 100,
-            //    "my_second_game_variant" => 101,
-            //      ...
+            "ace_takes_all" => 101,
+            "napola" => 102
         ) );
 
         $this->cards = self::getNew("module.common.deck");
@@ -109,6 +110,8 @@ class ScopaGM extends Table
         self::setGameStateInitialValue( 'dealer', 0 ); // Here just to group all global values initialization
         self::setGameStateInitialValue( 'last_player_to_take', 0); // It's impossible to end a round with no takes, so there's no need to initialize it to an id
         
+        self::setGameStateInitialValue( 'round_number', 0); 
+
         // Set match points according to game length
         $gmlen = self::getGameStateValue('game_length');
 
@@ -119,6 +122,9 @@ class ScopaGM extends Table
                 break;
             case 3: 
                 self::setGameStateInitialValue('match_points', 31);
+                break;
+            case 4: 
+                self::setGameStateInitialValue('match_points', 1);
                 break;
             default:
                 self::setGameStateInitialValue('match_points', 21);
@@ -393,6 +399,7 @@ class ScopaGM extends Table
             $teams[$nbr]['sevencoin'] = $this->sevencoin($cards);
             $teams[$nbr]['prime'] = $this->primePoints($cards);
             $teams[$nbr]['scopa'] = $this->scopaPoints($cards);
+            $teams[$nbr]['napola'] = $this->napolaPoints($cards);
 
             // Winner's catogories that can be assigned immediately
             if ($teams[$nbr]['sevencoin'] == 1) {
@@ -412,6 +419,7 @@ class ScopaGM extends Table
                 $points += $winner == $nbr ? 1 : 0;
             }
             $points += $teams[$nbr]['scopa'];
+            $points += $teams[$nbr]['napola'];
             $teams[$nbr]['total'] = $points;
 
             foreach($players as $player_id => $player) {
@@ -463,7 +471,9 @@ class ScopaGM extends Table
         $row['sevencoin'] = array( clienttranslate('7 of coins') );
         $row['prime'] = array( clienttranslate('Prime') );
         $row['scopa'] = array( clienttranslate('Scopa') );
+        $row['napola'] = array( clienttranslate('Napola') );
         $row['total'] = array( clienttranslate('Total') );
+
         foreach($teams as $nbr => $team) {
             // Cards
             $pointStr = $winners['cards'] == $nbr ? 1 : 0;
@@ -488,6 +498,10 @@ class ScopaGM extends Table
             $pointStr = $team['scopa'];
             array_push($row['scopa'], $pointStr);
 
+            // Napola
+            $pointStr = $team['napola'];
+            array_push($row['napola'], $pointStr);
+
             // Total
             $pointStr = $team['total'];
             array_push($row['total'], $pointStr);
@@ -497,11 +511,14 @@ class ScopaGM extends Table
         array_push($table, $row['sevencoin']);
         array_push($table, $row['prime']);
         array_push($table, $row['scopa']);
+        array_push($table, $row['napola']);
         array_push($table, $row['total']);
+
+        $round_number = self::getGameStateValue('round_number');
 
         self::notifyAllPlayers('tableWindow', '', array(
             'id' => 'endRoundScoring',
-            'title' => clienttranslate('Round\'s results'),
+            'title' => clienttranslate("Round $round_number results"),
             'table' => $table,
             'closing' => clienttranslate('Close')
         ));
@@ -567,6 +584,55 @@ class ScopaGM extends Table
         }
 
         return $sum;
+    }
+
+    private static function isCoins($card) {
+
+        return ($card['type'] == 2);
+    }
+
+    private static function cardSort($card_a, $card_b) {
+
+        $a = $card_a['type_arg'];
+        $b = $card_b['type_arg'];
+
+        if ($a==$b) return 0;
+
+        return ($a<$b) ? -1 : 1;
+
+    }
+
+    function napolaPoints($cards) {
+
+        $do_napola = (int) self::getGameStateValue('napola');
+
+        if ( $do_napola > 0 ) {
+            // keep only Coins cards
+            $coins_cards = array_filter($cards, "self::isCoins");
+
+            if ( count($coins_cards) < 3 ) {
+                return 0;
+            } 
+
+            // sort by ascending order
+            $coins_cards = uasort($coins_cards, "self::cardSort");
+
+            // check run of cards in consecutive order
+            $to_find = 1;
+
+            foreach ($cards as $card) {
+
+                if ($card["type_arg"] == $to_find) {
+                    $to_find += 1;
+                }
+            }
+
+            // Napola only counts if a team has got at least Ace, two, and three of Coins
+            return $to_find > 3 ? ($to_find - 1) : 0;
+        } 
+
+        return 0;
+
     }
 
     function byQuantityWinnerOf($category, $teams) {
@@ -829,11 +895,16 @@ class ScopaGM extends Table
         $dealer = $this->nextDealer();
         $this->gamestate->changeActivePlayer( self::getPlayerAfter($dealer) );
 
+        $round_number = (int) self::getGameStateValue('round_number');
+        $round_number += 1;
+
+        self::setGameStateValue('round_number', $round_number);
+
         $cards = $this->putCardsOnBoard();
         $sql = "UPDATE cards SET card_scopa = 0";
         self::DbQuery( $sql );
 
-        self::notifyAllPlayers('newRound', clienttranslate('A new round is beginning'), array(
+        self::notifyAllPlayers('newRound', clienttranslate("Round $round_number is beginning"), array(
             'cards' => $cards,
             'dealer' => $dealer
         ));
