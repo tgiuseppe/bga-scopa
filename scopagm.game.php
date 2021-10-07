@@ -518,9 +518,10 @@ class ScopaGM extends Table
 
         self::notifyAllPlayers('tableWindow', '', array(
             'id' => 'endRoundScoring',
-            'title' => clienttranslate("Round $round_number results"),
+            'title' => clienttranslate('Round ${round_number} results'),
             'table' => $table,
-            'closing' => clienttranslate('Close')
+            'closing' => clienttranslate('Close'),
+            'round_number' => $round_number
         ));
 
         self::notifyAllPlayers('updateScore', '', array(
@@ -730,9 +731,14 @@ class ScopaGM extends Table
         (note: each method below must match an input method in scopagm.action.php)
     */
 
+    // Play a card from the active player's hand
     function playCard($card_id, $taken_ids) {
-        self::checkAction("playCard");
         $player_id = self::getActivePlayerId();
+        $this->playCardFromPlayer($card_id, $taken_ids, $player_id);
+    }
+
+    function playCardFromPlayer($card_id, $taken_ids, $player_id) {
+        self::checkAction("playCard");
 
         $playedCard = null;
         $takenCards = $this->cards->getCards($taken_ids);
@@ -803,7 +809,7 @@ class ScopaGM extends Table
         // Notifications
 
         $notifPlayCard = $bOneCardTaken || $bMultipleCardsTaken ? 'playCardTake' : 'playCard';
-        self::notifyAllPlayers($notifPlayCard, clienttranslate('${player_name} plays ${value_displayed} ${suit_displayed}'), array(
+        self::notifyAllPlayers($notifPlayCard, clienttranslate('${player_name} plays ${value_displayed} of ${suit_displayed}'), array(
             'i18n' => array( 'suit_displayed', 'value_displayed'),
             'card_id' => $card_id,
             'taken_ids' => $taken_ids,
@@ -904,9 +910,10 @@ class ScopaGM extends Table
         $sql = "UPDATE cards SET card_scopa = 0";
         self::DbQuery( $sql );
 
-        self::notifyAllPlayers('newRound', clienttranslate("Round $round_number is beginning"), array(
+        self::notifyAllPlayers('newRound', clienttranslate('Round ${round_number} is beginning'), array(
             'cards' => $cards,
-            'dealer' => $dealer
+            'dealer' => $dealer,
+            'round_number' => $round_number
         ));
         $this->gamestate->nextState("");
     }
@@ -977,22 +984,59 @@ class ScopaGM extends Table
     {
     	$statename = $state['name'];
     	
-        if ($state['type'] === "activeplayer") {
-            switch ($statename) {
-                default:
-                    $this->gamestate->nextState( "zombiePass" );
-                	break;
-            }
+        switch ($statename) {
+            case 'playerTurn':
 
-            return;
+                // Play a random card
+                $playerHand = $this->cards->getCardsInLocation("hand", $active_player);
+                
+                if ( count($playerHand) == 0) {
+                    $this->gamestate->nextState("nextPlayer");
+                    return;
+                }
+
+                $randomCard = bga_rand(0, count($playerHand) - 1);
+                $keys       = array_keys($playerHand);
+                $cardId    = $playerHand[$keys[$randomCard]]['id'];
+                $cardValue = $playerHand[$keys[$randomCard]]['type_arg'];
+
+                $cardsOnBoard = $this->cards->getCardsInLocation("cardsonboard");
+
+                // check if there is a single card that matches
+                foreach ($cardsOnBoard as $cardOnBoard) {
+                    if ($cardOnBoard['type_arg'] == $cardValue ) {
+
+                        $this->playCardFromPlayer($cardId, $cardOnBoard['id'], $active_player);
+                        return;
+                    }
+                }
+
+                // get possible combinations
+                $combinations = $this->getPossibleCombinations(array_map( function($card) { return array($card['id'], $card['type_arg']); }, $cardsOnBoard));
+                foreach ($combinations as $combination) {
+                    if (count($combination) > 1) {
+                        $sum = array_sum(array_map(function($c) {return $c[1];}, $combination));
+                        if ($sum == $cardValue) {
+                            $taken_ids = array_map(function($c) {return $c[0];}, $combination);
+                            $this->playCardFromPlayer($cardId, $taken_ids, $active_player); 
+                            return;
+                        }
+                    }
+                }
+
+                // just discard, and take no cards
+                $this->playCardFromPlayer($cardId, array(), $active_player);
+                return;
+
+
+                break;
+            //default:
+                // To be implemented?
+                // $this->gamestate->nextState( "zombiePass" );
+            //    $this->gamestate->setPlayerNonMultiactive( $active_player, '' );
+            //    break;
         }
 
-        if ($state['type'] === "multipleactiveplayer") {
-            // Make sure player is in a non blocking status for role turn
-            $this->gamestate->setPlayerNonMultiactive( $active_player, '' );
-            
-            return;
-        }
 
         throw new feException( "Zombie mode not supported at this game state: ".$statename );
     }
