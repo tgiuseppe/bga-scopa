@@ -741,7 +741,7 @@ class ScopaGM extends Table
         self::checkAction("playCard");
 
         $playedCard = null;
-        $takenCards = $this->cards->getCards($taken_ids);
+        $takenCards = count($taken_ids) > 0 ? $this->cards->getCards($taken_ids) : array();
         $playerHand = $this->cards->getCardsInLocation("hand", $player_id);
         $cardsOnBoard = $this->cards->getCardsInLocation("cardsonboard");
 
@@ -982,22 +982,35 @@ class ScopaGM extends Table
 
     function zombieTurn( $state, $active_player )
     {
+        self::trace( "Zombie turn" );
     	$statename = $state['name'];
     	
+        self::dump( "Zombie state", $statename );
+        self::dump( "Zombie ID", $active_player  );
+
         switch ($statename) {
             case 'playerTurn':
 
+                
                 // Play a random card
                 $playerHand = $this->cards->getCardsInLocation("hand", $active_player);
                 
                 if ( count($playerHand) == 0) {
-                    $this->gamestate->nextState("nextPlayer");
+                    self::trace( "Zombie has no playable cards");
+                    $this->gamestate->nextState("zombiePass");
                     return;
+                }
+
+                foreach ($playerHand as $card) {
+                    self::dump( "Card in hand, id: ", $card['id']); 
+                    self::dump( "Card in hand, suit: ", $card['type']); 
+                    self::dump( "Card in hand, value: ", $card['type_arg']); 
                 }
 
                 $randomCard = bga_rand(0, count($playerHand) - 1);
                 $keys       = array_keys($playerHand);
                 $cardId    = $playerHand[$keys[$randomCard]]['id'];
+                $cardSuit  = $playerHand[$keys[$randomCard]]['type'];
                 $cardValue = $playerHand[$keys[$randomCard]]['type_arg'];
 
                 $cardsOnBoard = $this->cards->getCardsInLocation("cardsonboard");
@@ -1006,18 +1019,27 @@ class ScopaGM extends Table
                 foreach ($cardsOnBoard as $cardOnBoard) {
                     if ($cardOnBoard['type_arg'] == $cardValue ) {
 
+                        self::dump( "Played card, id: ", $cardId ); 
+                        self::dump( "Played card, suit: ", $cardSuit); 
+                        self::dump( "Played card, value: ", $cardValue); 
+
                         $this->playCardFromPlayer($cardId, $cardOnBoard['id'], $active_player);
                         return;
                     }
                 }
 
                 // get possible combinations
-                $combinations = $this->getPossibleCombinations(array_map( function($card) { return array($card['id'], $card['type_arg']); }, $cardsOnBoard));
+                $combinations = $this->getPossibleCombinations($cardsOnBoard);
                 foreach ($combinations as $combination) {
                     if (count($combination) > 1) {
-                        $sum = array_sum(array_map(function($c) {return $c[1];}, $combination));
+                        $sum = array_sum(array_map(function($c) {return $c["type_arg"];}, $combination));
                         if ($sum == $cardValue) {
-                            $taken_ids = array_map(function($c) {return $c[0];}, $combination);
+
+                            self::dump( "Played card, id: ", $cardId ); 
+                            self::dump( "Played card, suit: ", $cardSuit); 
+                            self::dump( "Played card, value: ", $cardValue); 
+
+                            $taken_ids = array_map(function($c) {return $c["id"];}, $combination);
                             $this->playCardFromPlayer($cardId, $taken_ids, $active_player); 
                             return;
                         }
@@ -1030,11 +1052,12 @@ class ScopaGM extends Table
 
 
                 break;
-            //default:
+            default:
                 // To be implemented?
                 // $this->gamestate->nextState( "zombiePass" );
             //    $this->gamestate->setPlayerNonMultiactive( $active_player, '' );
-            //    break;
+                return;
+                break;
         }
 
 
