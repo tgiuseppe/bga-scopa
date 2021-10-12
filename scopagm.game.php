@@ -621,7 +621,7 @@ class ScopaGM extends Table
             // check run of cards in consecutive order
             $to_find = 1;
 
-            foreach ($cards as $card) {
+            foreach ($coins_cards as $card) {
 
                 if ($card["type_arg"] == $to_find) {
                     $to_find += 1;
@@ -739,6 +739,9 @@ class ScopaGM extends Table
 
     function playCardFromPlayer($card_id, $taken_ids, $player_id) {
         self::checkAction("playCard");
+
+        // self::dump("Card ID",  $card_id);
+        // self::dump("Taken IDs", $taken_ids);
 
         $playedCard = null;
         $takenCards = count($taken_ids) > 0 ? $this->cards->getCards($taken_ids) : array();
@@ -947,9 +950,9 @@ class ScopaGM extends Table
         $match_points = (int) self::getGameStateValue('match_points');
 
         foreach($scores as $player_id => $score) {
-            self::dump( "Player ID: ", $player_id );
-            self::dump( "Score: ", $score );
-            self::dump( "Match points: ", $match_points );
+            // self::dump( "Player ID: ", $player_id );
+            // self::dump( "Score: ", $score );
+            // self::dump( "Match points: ", $match_points );
             if ($score > $match_points ) {
                 $isEndGame = true;
                 break;
@@ -985,8 +988,8 @@ class ScopaGM extends Table
         self::trace( "Zombie turn" );
     	$statename = $state['name'];
     	
-        self::dump( "Zombie state", $statename );
-        self::dump( "Zombie ID", $active_player  );
+        // self::dump( "Zombie state", $statename );
+        // self::dump( "Zombie ID", $active_player  );
 
         switch ($statename) {
             case 'playerTurn':
@@ -996,18 +999,20 @@ class ScopaGM extends Table
                 $playerHand = $this->cards->getCardsInLocation("hand", $active_player);
                 
                 if ( count($playerHand) == 0) {
-                    self::trace( "Zombie has no playable cards");
+                    // self::trace( "Zombie has no playable cards");
                     $this->gamestate->nextState("zombiePass");
                     return;
                 }
 
+                /*
                 foreach ($playerHand as $card) {
                     self::dump( "Card in hand, id: ", $card['id']); 
                     self::dump( "Card in hand, suit: ", $card['type']); 
                     self::dump( "Card in hand, value: ", $card['type_arg']); 
                 }
+                */
 
-                $randomCard = bga_rand(0, count($playerHand) - 1);
+                $randomCard = count($playerHand) > 1 ? bga_rand(0, count($playerHand) - 1) : 0;
                 $keys       = array_keys($playerHand);
                 $cardId    = $playerHand[$keys[$randomCard]]['id'];
                 $cardSuit  = $playerHand[$keys[$randomCard]]['type'];
@@ -1019,11 +1024,11 @@ class ScopaGM extends Table
                 foreach ($cardsOnBoard as $cardOnBoard) {
                     if ($cardOnBoard['type_arg'] == $cardValue ) {
 
-                        self::dump( "Played card, id: ", $cardId ); 
-                        self::dump( "Played card, suit: ", $cardSuit); 
-                        self::dump( "Played card, value: ", $cardValue); 
+                        // self::dump( "Played card, id: ", $cardId ); 
+                        // self::dump( "Played card, suit: ", $cardSuit); 
+                        // self::dump( "Played card, value: ", $cardValue); 
 
-                        $this->playCardFromPlayer($cardId, $cardOnBoard['id'], $active_player);
+                        $this->playCardFromPlayer($cardId, array($cardOnBoard['id']), $active_player);
                         return;
                     }
                 }
@@ -1035,9 +1040,9 @@ class ScopaGM extends Table
                         $sum = array_sum(array_map(function($c) {return $c["type_arg"];}, $combination));
                         if ($sum == $cardValue) {
 
-                            self::dump( "Played card, id: ", $cardId ); 
-                            self::dump( "Played card, suit: ", $cardSuit); 
-                            self::dump( "Played card, value: ", $cardValue); 
+                            // self::dump( "Played card, id: ", $cardId ); 
+                            // self::dump( "Played card, suit: ", $cardSuit); 
+                            // self::dump( "Played card, value: ", $cardValue); 
 
                             $taken_ids = array_map(function($c) {return $c["id"];}, $combination);
                             $this->playCardFromPlayer($cardId, $taken_ids, $active_player); 
@@ -1055,7 +1060,6 @@ class ScopaGM extends Table
             default:
                 // To be implemented?
                 // $this->gamestate->nextState( "zombiePass" );
-            //    $this->gamestate->setPlayerNonMultiactive( $active_player, '' );
                 return;
                 break;
         }
