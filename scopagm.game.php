@@ -309,6 +309,33 @@ class ScopaGM extends Table
         return $nbrKings > 2;
     }
 
+    function isAssoPigliatutto($playedCard, $takenCards, $cardsOnBoard) {
+
+        $apt = (int) self::getGameStateValue('ace_takes_all');
+
+        if ($apt > 0) {
+
+            // check if it's really an Ace
+            if ( (int) $playedCard['type_arg'] != 1 ) { return false; }
+
+            // TODO: check that it's not played as a first hand
+
+            // Check that there aren't already aces on the table
+            foreach ($cardsOnBoard as $cardOnBoard) {
+                if ( $cardOnBoard['type_arg'] == $playedCard['type_arg'] ) {
+                    return false;
+                }
+            }
+
+            // all checks done
+            return true;
+
+        }
+
+        return false;
+
+    }
+
     function isScopa($takenCards, $cardsOnBoard) {
         // Put this method after checking capture rules
 
@@ -796,6 +823,11 @@ class ScopaGM extends Table
 
         $bIsScopa = $this->isScopa($takenCards, $cardsOnBoard);
 
+        $bIsAssoPigliatutto = (!$bOneCardTaken) && 
+                              (!$bMultipleCardsTaken) && 
+                              (!$bIsScopa) &&
+                              $this->isAssoPigliatutto($playedCard, $takenCards, $cardsOnBoard);
+
         if ($bOneCardTaken || $bMultipleCardsTaken) {
             $sql_scopa = $bIsScopa ? 1 : 0;
             $sql_team = $this->getPlayerTeamById($player_id);
@@ -805,13 +837,23 @@ class ScopaGM extends Table
             $this->cards->moveCards($taken_ids, 'taken', $sql_team);
 
             self::setGameStateValue('last_player_to_take', $player_id);
+        } else if ($bIsAssoPigliatutto) {
+            $board_ids =  array_map(function ($c) { return $c['id'];}, $cardsOnBoard);
+
+            $sql_team = $this->getPlayerTeamById($player_id);
+            $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${sql_team}', `card_scopa` = 0 WHERE `card_id` = ${card_id}";
+            self::DbQuery( $sql );
+
+            $this->cards->moveCards($board_ids, 'taken', $sql_team);
+
+            self::setGameStateValue('last_player_to_take', $player_id);
         } else {
             $this->cards->moveCard($card_id, 'cardsonboard');
         }
 
         // Notifications
 
-        $notifPlayCard = $bOneCardTaken || $bMultipleCardsTaken ? 'playCardTake' : 'playCard';
+        $notifPlayCard = $bOneCardTaken || $bMultipleCardsTaken || $bIsAssoPigliatutto ? 'playCardTake' : 'playCard';
         self::notifyAllPlayers($notifPlayCard, clienttranslate('${player_name} plays ${value_displayed} of ${suit_displayed}'), array(
             'i18n' => array( 'suit_displayed', 'value_displayed'),
             'card_id' => $card_id,
@@ -853,6 +895,13 @@ class ScopaGM extends Table
 
         if ($bIsScopa) {
             self::notifyAllPlayers('isScopa', clienttranslate('${player_name} makes a Scopa!'), array(
+                'player_id' => $player_id,
+                'player_name' => self::getActivePlayerName(),
+            ));
+        }
+
+        if ($bIsAssoPigliatutto) {
+            self::notifyAllPlayers('isAssoPigliatutto', clienttranslate('${player_name} empties the board!'), array(
                 'player_id' => $player_id,
                 'player_name' => self::getActivePlayerName(),
             ));

@@ -59,8 +59,8 @@ $game_options = array(
     101 => array(
                     'name' => totranslate('Ace takes all'),    
                     'values' => array(  0 => array( 'name'      => totranslate('Off') ),
-                                        1 => array( 'name'      => totranslate('On - NOT YET IMPLEMENTED'),
-                                                    'tmdisplay' => totranslate('On - NOT YET IMPLEMENTED'),
+                                        1 => array( 'name'      => totranslate('On'),
+                                                    'tmdisplay' => totranslate('On'),
                                                     'description' => totranslate('Playing an Ace gets all the cards in play'),
                                                     'nobeginner'  => true) ),
                     'default' => 0 
