@@ -330,6 +330,13 @@ function (dojo, declare) {
 
         takeCardsFromBoard: function(player_id, player_team, suit, value, card_id, taken_ids, scopa) {
             let to = 'overall_player_board_' + player_id;
+            let tids = taken_ids;
+
+            // if taken_ids comes from PHP, you need to convert to an Array...
+            if (! Array.isArray(tids)) {
+                tids = Object.values(tids);
+            }
+
             if (scopa) {
                 let from = 'boardcards_item_' + card_id;
                 this.scopatables[player_team].addToStockWithId(this.getCardType(suit, value), card_id, from);
@@ -338,8 +345,8 @@ function (dojo, declare) {
                 this.board.removeFromStockById(card_id, to, true);
             }
 
-            for (let i = 0; i < taken_ids.length; i++) {
-                let id = taken_ids[i];
+            for (let i = 0; i < tids.length; i++) {
+                let id = tids[i];
                 this.board.removeFromStockById(id, to, true);
             }
 
@@ -479,12 +486,14 @@ function (dojo, declare) {
         
         notif_playCard: function(notif) {
             console.log("notif_playCard");
+            //console.log(notif);
 
             this.playCardOnBoard(notif.args.player_id, notif.args.suit, notif.args.value, notif.args.card_id, notif.args.taken_ids);
         },
 
         notif_takeCards: function(notif) {
             console.log("notif_takeCards");
+            //console.log(notif);
 
             this.takeCardsFromBoard(notif.args.player_id, notif.args.player_team, notif.args.suit, notif.args.value, notif.args.card_id, notif.args.taken_ids, notif.args.scopa);
         },

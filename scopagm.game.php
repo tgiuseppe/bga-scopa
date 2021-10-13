@@ -38,6 +38,7 @@ class ScopaGM extends Table
             "last_player_to_take" => 11,
             "match_points" => 12,
             "round_number" => 13,
+            "first_hand" => 14,
             
          
             "game_length" => 100,
@@ -110,6 +111,7 @@ class ScopaGM extends Table
         self::setGameStateInitialValue( 'dealer', 0 ); // Here just to group all global values initialization
         self::setGameStateInitialValue( 'last_player_to_take', 0); // It's impossible to end a round with no takes, so there's no need to initialize it to an id
         
+        self::setGameStateInitialValue( 'first_hand', 1); 
         self::setGameStateInitialValue( 'round_number', 0); 
 
         // Set match points according to game length
@@ -318,7 +320,10 @@ class ScopaGM extends Table
             // check if it's really an Ace
             if ( (int) $playedCard['type_arg'] != 1 ) { return false; }
 
-            // TODO: check that it's not played as a first hand
+            // check that it's not played as a first hand
+            if ((int) self::getGameStateValue('first_hand') == 1) {
+                return false;
+            }
 
             // Check that there aren't already aces on the table
             foreach ($cardsOnBoard as $cardOnBoard) {
@@ -545,7 +550,7 @@ class ScopaGM extends Table
 
         self::notifyAllPlayers('tableWindow', '', array(
             'id' => 'endRoundScoring',
-            'title' => clienttranslate('Round ${round_number} results'),
+            'title' => clienttranslate('Round results'),
             'table' => $table,
             'closing' => clienttranslate('Close'),
             'round_number' => $round_number
@@ -643,14 +648,15 @@ class ScopaGM extends Table
             } 
 
             // sort by ascending order
-            $coins_cards = uasort($coins_cards, "self::cardSort");
+            if (! uasort($coins_cards, "self::cardSort") )  { // something wrong with the (in-place) sorting?
+                return 0;
+            }
 
             // check run of cards in consecutive order
             $to_find = 1;
 
             foreach ($coins_cards as $card) {
-
-                if ($card["type_arg"] == $to_find) {
+                if ($card['type_arg'] == $to_find) {
                     $to_find += 1;
                 }
             }
@@ -774,6 +780,7 @@ class ScopaGM extends Table
         $takenCards = count($taken_ids) > 0 ? $this->cards->getCards($taken_ids) : array();
         $playerHand = $this->cards->getCardsInLocation("hand", $player_id);
         $cardsOnBoard = $this->cards->getCardsInLocation("cardsonboard");
+        $board_ids = array();
 
         // Do you really have this card in hand?
         $bIsInHand = false;
@@ -828,6 +835,11 @@ class ScopaGM extends Table
                               (!$bIsScopa) &&
                               $this->isAssoPigliatutto($playedCard, $takenCards, $cardsOnBoard);
 
+        //self::dump("bOneCardTaken", $bOneCardTaken);
+        //self::dump("bMultipleCardsTaken", $bMultipleCardsTaken);
+        //self::dump("bIsScopa", $bIsScopa);
+        //self::dump("bIsAssoPigliatutto ", $bIsAssoPigliatutto );
+
         if ($bOneCardTaken || $bMultipleCardsTaken) {
             $sql_scopa = $bIsScopa ? 1 : 0;
             $sql_team = $this->getPlayerTeamById($player_id);
@@ -839,6 +851,8 @@ class ScopaGM extends Table
             self::setGameStateValue('last_player_to_take', $player_id);
         } else if ($bIsAssoPigliatutto) {
             $board_ids =  array_map(function ($c) { return $c['id'];}, $cardsOnBoard);
+
+            //self::dump("board_ids", $board_ids);
 
             $sql_team = $this->getPlayerTeamById($player_id);
             $sql = "UPDATE `cards` SET `card_location` = 'taken', `card_location_arg` = '${sql_team}', `card_scopa` = 0 WHERE `card_id` = ${card_id}";
@@ -893,6 +907,20 @@ class ScopaGM extends Table
             ));
         }
 
+        if ($bIsAssoPigliatutto) {
+            //self::dump("taken_ids", $board_ids);
+            self::notifyAllPlayers('takeCards', clienttranslate('${player_name} empties the board!'), array(
+                'card_id' => $card_id,
+                'suit' => $playedCard['type'],
+                'value' => $playedCard['type_arg'],
+                'taken_ids' => $board_ids,
+                'player_id' => $player_id,
+                'player_name' => self::getActivePlayerName(),
+                'player_team' => $this->getPlayerTeamById($player_id),
+                'scopa' => $bIsScopa
+            ));
+        }
+
         if ($bIsScopa) {
             self::notifyAllPlayers('isScopa', clienttranslate('${player_name} makes a Scopa!'), array(
                 'player_id' => $player_id,
@@ -900,11 +928,8 @@ class ScopaGM extends Table
             ));
         }
 
-        if ($bIsAssoPigliatutto) {
-            self::notifyAllPlayers('isAssoPigliatutto', clienttranslate('${player_name} empties the board!'), array(
-                'player_id' => $player_id,
-                'player_name' => self::getActivePlayerName(),
-            ));
+        if ((int) self::getGameStateValue('first_hand') == 1) {
+            self::setGameStateValue('first_hand', 0);
         }
 
         $this->gamestate->nextState('playCard');
@@ -967,6 +992,9 @@ class ScopaGM extends Table
             'dealer' => $dealer,
             'round_number' => $round_number
         ));
+
+        self::setGameStateValue('first_hand', 1);
+
         $this->gamestate->nextState("");
     }
 
