@@ -56,18 +56,11 @@ $stats_type = array(
                     "name" => totranslate("Number of turns"),
                     "type" => "int" ),
 
-/*
-        Examples:
+        "rounds_number" => array("id"=> 11,
+                    "name" => totranslate("Number of rounds"),
+                    "type" => "int" ),
 
-
-        "table_teststat1" => array(   "id"=> 10,
-                                "name" => totranslate("table test stat 1"), 
-                                "type" => "int" ),
-                                
-        "table_teststat2" => array(   "id"=> 11,
-                                "name" => totranslate("table test stat 2"), 
-                                "type" => "float" )
-*/  
+  
     ),
     
     // Statistics existing for each player
@@ -76,7 +69,47 @@ $stats_type = array(
         "turns_number" => array("id"=> 10,
                     "name" => totranslate("Number of turns"),
                     "type" => "int" ),
+
+        // "rounds_number" => array("id"=> 11,
+        //             "name" => totranslate("Number of rounds"),
+        //             "type" => "int" ),
+
+        "scopa_pts" => array("id"=> 12,
+                    "name" => totranslate("Scopa won"),
+                    "type" => "int" ),
     
+        "settebello_pts" => array("id"=> 13,
+                    "name" => totranslate("Settebello points won"),
+                    "type" => "int" ),
+
+        "card_pts" => array("id"=> 14,
+                    "name" => totranslate("Card points won"),
+                    "type" => "int" ),
+
+        "card_number" => array("id"=> 15,
+                    "name" => totranslate("Cards taken"),
+                    "type" => "int" ),
+
+        "coin_pts" => array("id"=> 16,
+                    "name" => totranslate("Coin points won"),
+                    "type" => "int" ),
+
+        // "coin_number" => array("id"=> 17,
+        //             "name" => totranslate("Coin cards taken"),
+        //             "type" => "int" ),
+
+        "prime_pts" => array("id"=> 18,
+                    "name" => totranslate("Prime points won"),
+                    "type" => "int" ),
+
+        "napola_pts" => array("id"=> 19,
+                    "name" => totranslate("Napola points won"),
+                    "type" => "int" ),
+
+        "asso_played" => array("id"=> 20,
+                    "name" => totranslate("Asso pigliatutto played"),
+                    "type" => "int" ),
+
 /*
         Examples:    
         

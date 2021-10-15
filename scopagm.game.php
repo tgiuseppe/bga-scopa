@@ -126,7 +126,7 @@ class ScopaGM extends Table
                 self::setGameStateInitialValue('match_points', 31);
                 break;
             case 4: 
-                self::setGameStateInitialValue('match_points', 1);
+                self::setGameStateInitialValue('match_points', 0);
                 break;
             default:
                 self::setGameStateInitialValue('match_points', 21);
@@ -215,7 +215,7 @@ class ScopaGM extends Table
         $sql = "SELECT max(player_score) FROM player";
         $match_points = (int) self::getGameStateValue('match_points');
         $result = self::getUniqueValueFromDB( $sql );
-        $result = $result * 100 / $match_points;
+        $result = $result * 100 / max($match_points, 1);
         $result = $result < 100 ? $result : 100;
 
         return $result;
@@ -457,6 +457,22 @@ class ScopaGM extends Table
             foreach($players as $player_id => $player) {
                 if ($player['player_team'] == $nbr) {
                     $players[$player_id]['player_score'] += $points;
+
+                    if ($teams[$nbr]['sevencoin'] == 1) {
+                        self::incStat(1, 'settebello_pts', $player_id);
+                    }
+                    if ($winners['cards'] == $nbr) {
+                        self::incStat(1, 'card_pts', $player_id);
+                    }
+                    if ($winners['prime'] == $nbr) {
+                        self::incStat(1, 'prime_pts', $player_id);
+                    }
+                    if ($winners['coins'] == $nbr) {
+                        self::incStat(1, 'coin_pts', $player_id);
+                    }
+
+                    self::incStat($teams[$nbr]['napola'], 'napola_pts', $player_id);          
+                    
                 }
             }
 
@@ -773,6 +789,9 @@ class ScopaGM extends Table
     function playCardFromPlayer($card_id, $taken_ids, $player_id) {
         self::checkAction("playCard");
 
+        self::incStat(1, "turns_number");
+        self::incStat(1, "turns_number", $player_id);
+
         // self::dump("Card ID",  $card_id);
         // self::dump("Taken IDs", $taken_ids);
 
@@ -848,6 +867,12 @@ class ScopaGM extends Table
 
             $this->cards->moveCards($taken_ids, 'taken', $sql_team);
 
+            self::incStat(count($taken_ids) + 1, "card_number", $player_id);
+            
+            if ($bIsScopa) {
+                self::incStat(count($taken_ids) + 1, "scopa_pts", $player_id);
+            }
+
             self::setGameStateValue('last_player_to_take', $player_id);
         } else if ($bIsAssoPigliatutto) {
             $board_ids =  array_map(function ($c) { return $c['id'];}, $cardsOnBoard);
@@ -859,6 +884,9 @@ class ScopaGM extends Table
             self::DbQuery( $sql );
 
             $this->cards->moveCards($board_ids, 'taken', $sql_team);
+
+            self::incStat(count($board_ids) + 1, "card_number", $player_id);
+            self::incStat(1, "asso_played", $player_id);
 
             self::setGameStateValue('last_player_to_take', $player_id);
         } else {
@@ -994,6 +1022,8 @@ class ScopaGM extends Table
         ));
 
         self::setGameStateValue('first_hand', 1);
+
+        self::incStat(1, "rounds_number");
 
         $this->gamestate->nextState("");
     }
